@@ -11,3 +11,5 @@ The course contents is available at this address: https://formations.imt-atlanti
 2) Install the PyRat software using `pip install git+https://github.com/BastienPasdeloup/PyRat.git`.
 
 3) Then, run the following command to create a PyRat workspace: `python -c "import pyrat; pyrat.setup_workspace()"`.
+
+![PyRat](pyrat/gui/drawings/pyrat.png "PyRat")
