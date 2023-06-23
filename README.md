@@ -16,4 +16,4 @@ Installation of the PyRat software can be done directly using `pip`. Do not clon
 
 3) Then, run the following command to create a PyRat workspace:<br />`python -c "import pyrat; pyrat.setup_workspace()"`
 
-4) Check your installation by navigating to `pyrat_workspace/programs` and running the following command:<br />`python random.py`
+4) Check your installation by navigating to `pyrat_workspace/programs` and running the following command:<br />`python random_1.py`
