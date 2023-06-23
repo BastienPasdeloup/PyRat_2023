@@ -15,6 +15,7 @@
 import setuptools
 import os
 
+
 #####################################################################################################################################################
 ####################################################################### SCRIPT ######################################################################
 #####################################################################################################################################################
@@ -33,7 +34,7 @@ setuptools.setup \
     project_urls =                  {"Course" : "https://formations.imt-atlantique.fr/pyrat"},
     license =                       "MIT",
     packages =                      ["pyrat"],
-    package_data={"" : [x[0] for x in os.walk("pyrat")]},
+package_data  = { 'module': ['pyrat/**'],},
     include_package_data=True,
     install_requires =              ["pygame", "gym", "colored", "distinctipy", "playsound"]
 )
