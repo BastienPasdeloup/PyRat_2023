@@ -1,12 +1,12 @@
 # PyRat
 
-<p style="float:left">
+<p style="float: left; width: 100px;">
     This repository contains the software used in the PyRat course at IMT Atlantique
     <br />
     The course contents is available at this address: https://formations.imt-atlantique.fr/pyrat/
 </p>
 
-<img style="float: right;" src="pyrat/gui/drawings/pyrat.png" />
+<img style="float: right; width: 100px;" src="pyrat/gui/drawings/pyrat.png" />
 
 # Install
 
