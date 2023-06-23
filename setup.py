@@ -31,7 +31,7 @@ setuptools.setup(
     project_urls = {"Bug Tracker" : "https://github.com/BastienPasdeloup/PyRat/issues",
                     "Course" : "https://formations.imt-atlantique.fr/pyrat"},
     license = "MIT",
-    packages = ["PyRat"],
+    packages = ["pyrat"],
     install_requires = ["pygame"])
 
 #####################################################################################################################################################
