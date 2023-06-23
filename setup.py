@@ -13,6 +13,7 @@
 
 # Imports
 import setuptools
+import os
 
 #####################################################################################################################################################
 ####################################################################### SCRIPT ######################################################################
@@ -31,7 +32,7 @@ setuptools.setup(
     project_urls = {"Bug Tracker" : "https://github.com/BastienPasdeloup/PyRat/issues",
                     "Course" : "https://formations.imt-atlantique.fr/pyrat"},
     license = "MIT",
-    packages = setuptools.find_packages(),
+    packages = [x[0] for x in os.walk("pyrat")]
     install_requires = ["pygame"])
 
 #####################################################################################################################################################
