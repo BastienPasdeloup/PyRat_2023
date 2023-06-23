@@ -20,20 +20,21 @@ import os
 #####################################################################################################################################################
 
 # Set package info
-setuptools.setup(
-    name = "PyRat",
-    version = "4.0.0",
-    author = "Bastien Pasdeloup",
-    author_email = "bastien.pasdeloup@imt-atlantique.fr",
-    description = "PyRat softare used in the PyRat course at IMT Atlantique",
-    long_description = open("README.md", "r", encoding="utf-8").read(),
+setuptools.setup \
+(
+    name =                          "PyRat",
+    version =                       "4.0.0",
+    author =                        "Bastien Pasdeloup",
+    author_email =                  "bastien.pasdeloup@imt-atlantique.fr",
+    description =                   "PyRat softare used in the PyRat course at IMT Atlantique",
+    long_description =              open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type = "text/markdown",
-    url = "https://github.com/BastienPasdeloup/PyRat",
-    project_urls = {"Bug Tracker" : "https://github.com/BastienPasdeloup/PyRat/issues",
-                    "Course" : "https://formations.imt-atlantique.fr/pyrat"},
-    license = "MIT",
-    packages = [x[0] for x in os.walk("pyrat")],
-    install_requires = ["pygame"])
+    url =                           "https://github.com/BastienPasdeloup/PyRat",
+    project_urls =                  {"Course" : "https://formations.imt-atlantique.fr/pyrat"},
+    license =                       "MIT",
+    packages =                      [x[0] for x in os.walk("pyrat")],
+    install_requires =              ["pygame"]
+)
 
 #####################################################################################################################################################
 #####################################################################################################################################################
