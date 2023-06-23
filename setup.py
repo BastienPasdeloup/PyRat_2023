@@ -33,7 +33,7 @@ setuptools.setup \
     project_urls =                  {"Course" : "https://formations.imt-atlantique.fr/pyrat"},
     license =                       "MIT",
     packages =                      [x[0] for x in os.walk("pyrat")],
-    install_requires =              ["pygame"]
+    install_requires =              ["pygame", "gym", "colored", "distinctipy", "playsound"]
 )
 
 #####################################################################################################################################################
