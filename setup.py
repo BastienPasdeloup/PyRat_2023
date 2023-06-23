@@ -29,7 +29,7 @@ setuptools.setup(
     long_description_content_type = "text/markdown",
     url = "https://github.com/BastienPasdeloup/PyRat",
     project_urls = {"Bug Tracker" : "https://github.com/BastienPasdeloup/PyRat/issues",
-                    "Course" : "https://formations.imt-atlantique.fr/pyrat"}
+                    "Course" : "https://formations.imt-atlantique.fr/pyrat"},
     license = "MIT",
     packages = ["PyRat"],
     install_requires = ["pygame"])
