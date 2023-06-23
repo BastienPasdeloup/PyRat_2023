@@ -32,8 +32,8 @@ setuptools.setup \
     url =                           "https://github.com/BastienPasdeloup/PyRat",
     project_urls =                  {"Course" : "https://formations.imt-atlantique.fr/pyrat"},
     license =                       "MIT",
-    package = ["pyrat"],
-    #package_data = {"gui" : ["pyrat/gui"], "workspace" : ["pyrat/workspace"]},
+    packages = ["pyrat"],
+    package_data = {"gui" : ["pyrat/gui"], "workspace" : ["pyrat/workspace"]},
     install_requires =              ["pygame", "gym", "colored", "distinctipy", "playsound"]
 )
 
