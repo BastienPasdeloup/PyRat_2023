@@ -33,7 +33,7 @@ setuptools.setup \
     project_urls =                  {"Course" : "https://formations.imt-atlantique.fr/pyrat"},
     license =                       "MIT",
     packages =                      ["pyrat"],
-    package_dir =                   {"gui" : "pyrat/gui", "workspace" : "pyrat/workspace"},
+    package_dir =                   {"gui" : "gui", "workspace" : "workspace"},
     install_requires =              ["pygame", "gym", "colored", "distinctipy", "playsound"]
 )
 
