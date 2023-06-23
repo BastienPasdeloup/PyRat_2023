@@ -1,8 +1,12 @@
 # PyRat
 
-This repository contains the software used in the PyRat course at IMT Atlantique
+<p style="float:left">
+    This repository contains the software used in the PyRat course at IMT Atlantique
+    <br />
+    The course contents is available at this address: https://formations.imt-atlantique.fr/pyrat/
+</p>
 
-The course contents is available at this address: https://formations.imt-atlantique.fr/pyrat/
+<img style="float: right;" src="pyrat/gui/drawings/pyrat.png" />
 
 # Install
 
@@ -12,4 +16,3 @@ The course contents is available at this address: https://formations.imt-atlanti
 
 3) Then, run the following command to create a PyRat workspace: `python -c "import pyrat; pyrat.setup_workspace()"`.
 
-![PyRat](pyrat/gui/drawings/pyrat.png "PyRat")
