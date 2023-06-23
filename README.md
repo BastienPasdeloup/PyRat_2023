@@ -1,7 +1,7 @@
 # PyRat
 
 <div>
-    <p style="width: 80%;">
+    <p style="width: 80% !important;">
         This repository contains the software used in the PyRat course at IMT Atlantique.
         <br />
         <br />
