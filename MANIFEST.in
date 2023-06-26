@@ -2,8 +2,8 @@
 ######################################################################## INFO #######################################################################
 #####################################################################################################################################################
 
-#    This program is needed for an automatic installation of the PyRat software.
-#    It details the directories that do not contain Python modules but should be downloaded for a proper install.
+#   This program is needed for an automatic installation of the PyRat software.
+#   It details the directories that do not contain Python modules but should be downloaded for a proper install.
 
 #####################################################################################################################################################
 ###################################################################### CONTENTS #####################################################################

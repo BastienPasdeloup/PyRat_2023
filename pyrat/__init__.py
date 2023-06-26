@@ -6,7 +6,7 @@
     This is the main file of the PyRat library, used as a support software for the course with the same name at IMT Atlantique.
     It can be used either as a Gym environment (use the classical Gym functions "step", etc.) or as a standalone (use the "start" function).
     The Gym aspect of the game hasn't been super-checked, and is rather a future functionality for later.
-    For the standalone game usage, please check the examples on the PyRat website: https://formations.imt-atlantique.fr/pyrat/ .
+    For the standalone game usage, please check the examples on the PyRat website: https://formations.imt-atlantique.fr/pyrat/.
     The games arguments and their descriptions can be accessed using the "python3 pyrat.py -h" command.
     They can be set either using the terminal or as arguments to the constructor of the PyRat environment.
     For any question regarding the code or course contents, please contact Bastien Pasdeloup (bastien.pasdeloup@imt-atlantique.fr).
