@@ -40,6 +40,7 @@ import shutil
 import distinctipy
 import playsound
 import dill
+import platform
 
 #####################################################################################################################################################
 ##################################################################### ARGUMENTS #####################################################################
@@ -106,29 +107,39 @@ class DillProcess (multiprocessing.Process) :
     """
         This class is a small hack to allow compatibility with Windows.
         It allows to define process functions embedded within other functions easily.
-        Check here for more info: https://stackoverflow.com/questions/72766345/attributeerror-cant-pickle-local-object-in-multiprocessing.
+        Check here for more info:
+        https://stackoverflow.com/questions/72766345/attributeerror-cant-pickle-local-object-in-multiprocessing.
+        https://stackoverflow.com/questions/29007619/python-typeerror-pickling-an-authenticationstring-object-is-disallowed-for-sec.
     """
 
     def __init__ (self, *args, **kwargs) :
         super().__init__(*args, **kwargs)
-        try :
-            multiprocessing.set_start_method("fork")
-            print("aaaaaaa")
-        except ValueError :
+        if platform.system() == "Windows" :
             self._target = dill.dumps(self._target)
-        except :
-            pass
 
     def run (self) :
-        if self._target :
-            try :
-                multiprocessing.set_start_method("fork")
-                print("aaaaaaa")
-            except ValueError :
-                self._target = dill.loads(self._target)
-            except :
-                pass
+        if platform.system() == "Windows" :
+            self._target = dill.loads(self._target)
             self._target(*self._args, **self._kwargs)
+        else :
+            super().run()
+    
+    def __getstate__ (self) :
+        if platform.system() == "Windows" :
+            state = self.__dict__.copy()
+            conf = state['_config']
+            if 'authkey' in conf:
+                conf['authkey'] = bytes(conf['authkey'])
+            return state
+        else :
+            return super.__getstate__(self)
+
+    def __setstate__ (self, state) :
+        if platform.system() == "Windows" :
+            state['_config']['authkey'] = multiprocessing.process.AuthenticationString(state['_config']['authkey'])
+            self.__dict__.update(state)
+        else :
+            return super.__setstate__(self, state)
 
 #####################################################################################################################################################
 
