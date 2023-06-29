@@ -70,9 +70,10 @@ parser.add_argument("--turn_time",           type=float,                        
 parser.add_argument("--synchronous",         action="store_true",                                        default=False,    help="If set, waits for all players to return a move before moving, even if turn_time is exceeded",)
 parser.add_argument("--continue_on_error",   action="store_true",                                        default=False,    help="If a player crashes, continues the game anyway")
 parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",    help="Method to display the game, or None to play without rendering")
-parser.add_argument("--render_details",      action="store_true",                                        default=False,    help="If the maze is rendered, adds some elements that are not essential")
+parser.add_argument("--render_simplified",   action="store_true",                                        default=False,    help="If the maze is rendered, hides some elements that are not essential")
+parser.add_argument("--fullscreen",          action="store_true",                                        default=False,    help="Renders the game in fullscreen mode (GUI rendering only)")
 parser.add_argument("--trace_length",        type=int,                                                   default=0,        help="Maximum length of the trace to display when players are moving (GUI rendering only)")
-                    
+
 # Parse the arguments into a global variable
 args = parser.parse_args()
 
@@ -112,7 +113,7 @@ class PyRat (gym.Env) :
     #                                                                GYM METHODS                                                                #
     #############################################################################################################################################
 
-    def __init__ (self, players, random_seed=args.random_seed, random_seed_maze=args.random_seed_maze, random_seed_cheese=args.random_seed_cheese, random_seed_players=args.random_seed_players, maze_width=args.maze_width, maze_height=args.maze_height, cell_percentage=args.cell_percentage, wall_percentage=args.wall_percentage, mud_percentage=args.mud_percentage, mud_range=args.mud_range, maze_representation=args.maze_representation, fixed_maze=args.fixed_maze, nb_cheese=args.nb_cheese, fixed_cheese=args.fixed_cheese, render_mode=args.render_mode, render_details=args.render_details, trace_length=args.trace_length, save_path=args.save_path, save_game=args.save_game, preprocessing_time=args.preprocessing_time, turn_time=args.turn_time, synchronous=args.synchronous, continue_on_error=args.continue_on_error) :
+    def __init__ (self, players, random_seed=args.random_seed, random_seed_maze=args.random_seed_maze, random_seed_cheese=args.random_seed_cheese, random_seed_players=args.random_seed_players, maze_width=args.maze_width, maze_height=args.maze_height, cell_percentage=args.cell_percentage, wall_percentage=args.wall_percentage, mud_percentage=args.mud_percentage, mud_range=args.mud_range, maze_representation=args.maze_representation, fixed_maze=args.fixed_maze, nb_cheese=args.nb_cheese, fixed_cheese=args.fixed_cheese, render_mode=args.render_mode, render_simplified=args.render_simplified, trace_length=args.trace_length, fullscreen=args.fullscreen, save_path=args.save_path, save_game=args.save_game, preprocessing_time=args.preprocessing_time, turn_time=args.turn_time, synchronous=args.synchronous, continue_on_error=args.continue_on_error) :
 
         """
             Main class of the Gym environment.
@@ -134,8 +135,9 @@ class PyRat (gym.Env) :
                 * nb_cheese ............. int ............................................................. Number of pieces of cheese in the maze.
                 * fixed_cheese .......... str [or] list (int) ............................................. Fixed list of cheese (takes priority over random number of cheese).
                 * render_mode ........... str ............................................................. Method to display the game, or None to play without rendering.
-                * render_details ........ bool ............................................................ If the maze is rendered, adds some elements that are not essential.
+                * render_simplified ..... bool ............................................................ If the maze is rendered, hides some elements that are not essential.
                 * trace_length .......... int ............................................................. Maximum length of the trace to display when players are moving (GUI rendering only).
+                * fullscreen ............ bool ............................................................ Renders the game in fullscreen mode (GUI rendering only).
                 * save_path ............. str ............................................................. Path where games are saved.
                 * save_game ............. bool ............................................................ Indicates if the game should be saved.
                 * preprocessing_time .... float ........................................................... Time given to the players before the game starts.
@@ -167,7 +169,8 @@ class PyRat (gym.Env) :
         self.nb_cheese = nb_cheese
         self.fixed_cheese = fixed_cheese
         self.render_mode = render_mode
-        self.render_details = render_details
+        self.render_simplified = render_simplified
+        self.fullscreen = fullscreen
         self.trace_length = trace_length
         self.save_path = save_path
         self.save_game = save_game
@@ -636,7 +639,7 @@ class PyRat (gym.Env) :
                     background = wall if unconnected_cell else ground
                     cell_contents = ""
                     if subrow == 0 :
-                        if background != wall and self.render_details :
+                        if background != wall and not self.render_simplified :
                             cell_contents += background
                             cell_contents += cell_number(self._rc_to_i(row, col))
                     elif cheese_in_cell :
@@ -662,7 +665,7 @@ class PyRat (gym.Env) :
                     else :
                         if right_weight == "1" :
                             environment_str += path_vertical
-                        elif self.render_details and int(numpy.ceil((cell_height - len(right_weight)) / 2)) <= subrow < int(numpy.ceil((cell_height - len(right_weight)) / 2)) + len(right_weight) :
+                        elif not self.render_simplified and int(numpy.ceil((cell_height - len(right_weight)) / 2)) <= subrow < int(numpy.ceil((cell_height - len(right_weight)) / 2)) + len(right_weight) :
                             digit_number = subrow - int(numpy.ceil((cell_height - len(right_weight)) / 2))
                             environment_str += mud_value(right_weight[digit_number])
                         else :
@@ -679,7 +682,7 @@ class PyRat (gym.Env) :
                 elif bottom_weight == "1" :
                     environment_str += path_horizontal * cell_width + wall
                 else :
-                    cell_contents = mud_horizontal * ((cell_width - colored_len(bottom_weight)) // 2) + mud_value(bottom_weight) if self.render_details else ""
+                    cell_contents = mud_horizontal * ((cell_width - colored_len(bottom_weight)) // 2) + mud_value(bottom_weight) if not self.render_simplified else ""
                     environment_str += cell_contents
                     environment_str += mud_horizontal * (cell_width - colored_len(cell_contents)) + wall
         
@@ -705,14 +708,16 @@ class PyRat (gym.Env) :
         """
 
         # Define a function to run the GUI in a separate thread
-        def gui_thread_function () :
+        def gui_thread_function (gui_initialized_synchronizer) :
             try :
                 
-                # Initialize the library and window
-                # TODO
+                # Initialize the window
                 pygame.init()
-                #screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-                screen = pygame.display.set_mode((1600, 800))
+                if self.fullscreen :
+                    screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
+                    pygame.display.toggle_fullscreen()
+                else :
+                    screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
                 
                 # We will store elements to display
                 maze_elements = []
@@ -817,7 +822,7 @@ class PyRat (gym.Env) :
                     return final_surface
 
                 # Function to load the surfaces of a player
-                def load_player_surfaces (player_name, scale, border_color=None, border_width=None, add_border=self.render_details) :
+                def load_player_surfaces (player_name, scale, border_color=None, border_width=None, add_border=not self.render_simplified) :
                     try :
                         player_neutral = surface_from_image(os.path.join("gui", "players", player_name, "neutral.png"), scale)
                         player_north = surface_from_image(os.path.join("gui", "players", player_name, "north.png"), scale)
@@ -897,7 +902,7 @@ class PyRat (gym.Env) :
                                         mud_x = maze_x_offset + col * cell_size - mud.get_width() // 2
                                         mud_y = maze_y_offset + row * cell_size
                                         maze_elements.append((mud_x, mud_y, mud))
-                                        if self.render_details :
+                                        if not self.render_simplified :
                                             weight_text = surface_from_text(str(self.maze[self._rc_to_i(row, col)][self._rc_to_i(row, col - 1)]), text_size, mud_text_color)
                                             weight_text_x = maze_x_offset + col * cell_size - weight_text.get_width() // 2
                                             weight_text_y = maze_y_offset + row * cell_size + (cell_size - weight_text.get_height()) // 2
@@ -909,17 +914,17 @@ class PyRat (gym.Env) :
                                         mud_x = maze_x_offset + col * cell_size
                                         mud_y = maze_y_offset + row * cell_size - mud.get_width() // 2
                                         maze_elements.append((mud_x, mud_y, mud_horizontal))
-                                        if self.render_details :
+                                        if not self.render_simplified :
                                             weight_text = surface_from_text(str(self.maze[self._rc_to_i(row, col)][self._rc_to_i(row - 1, col)]), text_size, mud_text_color)
                                             weight_text_x = maze_x_offset + col * cell_size + (cell_size - weight_text.get_width()) // 2
                                             weight_text_y = maze_y_offset + row * cell_size - weight_text.get_height() // 2
                                             maze_elements.append((weight_text_x, weight_text_y, weight_text))
 
                 # Add cell numbers
-                for row in range(self.maze_height) :
-                    for col in range(self.maze_width) :
-                        if cell_is_in_maze(row, col) :
-                            if self.render_details :
+                if not self.render_simplified :
+                    for row in range(self.maze_height) :
+                        for col in range(self.maze_width) :
+                            if cell_is_in_maze(row, col) :
                                 cell_text = surface_from_text(str(self._rc_to_i(row, col)), text_size, cell_text_color)
                                 cell_text_x = maze_x_offset + col * cell_size + cell_text_offset
                                 cell_text_y = maze_y_offset + row * cell_size + cell_text_offset
@@ -968,7 +973,7 @@ class PyRat (gym.Env) :
                             maze_elements.append((corner_x, corner_y, corner))
                 
                 # Add flags
-                if self.render_details :
+                if not self.render_simplified :
                     cells_with_flags = {cell : {} for cell in self.player_locations.values()}
                     for player in self.player_locations :
                         team = [team for team in self.teams if player in self.teams[team]][0]
@@ -1014,7 +1019,7 @@ class PyRat (gym.Env) :
                 
                     # Box
                     team = list(self.teams.keys())[i]
-                    avatars_area_color_box = team_colors[team] if self.render_details else avatars_area_color
+                    avatars_area_color_box = team_colors[team] if not self.render_simplified else avatars_area_color
                     team_background = pygame.Surface((avatars_area_width, avatars_area_height))
                     pygame.draw.rect(team_background, background_color, pygame.Rect(0, 0, avatars_area_width, avatars_area_height))
                     pygame.draw.rect(team_background, avatars_area_color_box, pygame.Rect(0, 0, avatars_area_width, avatars_area_height), avatars_area_border, avatars_area_angle)
@@ -1133,10 +1138,7 @@ class PyRat (gym.Env) :
                 main_image_y = maze_y_offset + (game_area_height - preprocessing_image.get_height()) / 2
                 screen.blit(preprocessing_image, (main_image_x, main_image_y))
                 
-                # Show initial rendering
-                pygame.display.flip()
-                
-                # Run until the user asks to quit
+                # Prepare useful variables
                 current_player_locations = self.player_locations.copy()
                 current_cheese = self.cheese.copy()
                 mud_being_crossed = {player : 0 for player in self.player_locations}
@@ -1144,6 +1146,12 @@ class PyRat (gym.Env) :
                 trace_colors = {player : get_main_color(player_elements[player][2]) for player in self.player_locations}
                 player_surfaces = {player : player_elements[player][2] for player in self.player_locations}
                 running = True
+
+                # Show and indicate when ready
+                pygame.display.flip()
+                gui_initialized_synchronizer.wait()
+
+                # Run until the user asks to quit
                 while running :
                 
                     # Stop when the window is closed or escape key is pressed
@@ -1267,9 +1275,11 @@ class PyRat (gym.Env) :
             
         # Initialize the GUI in a different thread
         if self.turn == 0 :
-            self.gui_thread = threading.Thread(target=gui_thread_function)
+            gui_initialized_synchronizer = threading.Barrier(2)
+            self.gui_thread = threading.Thread(target=gui_thread_function, args=(gui_initialized_synchronizer,))
             self.gui_thread.daemon = True
             self.gui_thread.start()
+            gui_initialized_synchronizer.wait()
         
         # At each turn, send current info to the thread
         else :
@@ -1726,15 +1736,14 @@ class PyRat (gym.Env) :
                     # rendering of the maze
                     self.render()
 
-        # Stats make no sense in case of an error
+        # In case of an error, we ignore stats and quit the GUI if any
         except :
             print(traceback.format_exc(), file=sys.stderr)
             self.stats = {}
+            pygame.quit()
         
-        # Cleanup
+        # Clean before returning
         self.close()
-        
-        # Return stats
         return self.stats
 
     #############################################################################################################################################
