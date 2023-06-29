@@ -155,7 +155,9 @@ if __name__ == "__main__" :
     config = {"maze_width" : 15,
               "maze_height" : 11,
               "mud_percentage" : 0.0,
-              "nb_cheese" : 1}
+              "nb_cheese" : 1,
+              "render_details": True,
+              "trace_length": 1000}
 
     # Start the game
     game = PyRat(players, **config)
