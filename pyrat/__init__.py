@@ -24,7 +24,8 @@ import re
 import colored
 import scipy.sparse as sparse
 import scipy.sparse.csgraph as csgraph
-import multiprocessing
+import threading
+import queue
 import time
 import traceback
 import argparse
@@ -35,12 +36,9 @@ import datetime
 import glob
 import pygame
 import pygame.locals as pglocals
-import queue
 import shutil
 import distinctipy
 import playsound
-import dill
-import platform
 
 #####################################################################################################################################################
 ##################################################################### ARGUMENTS #####################################################################
@@ -100,47 +98,6 @@ def setup_workspace () :
 
 #####################################################################################################################################################
 ###################################################################### CLASSES ######################################################################
-#####################################################################################################################################################
-
-class DillProcess (multiprocessing.Process) :
-
-    """
-        This class is a small hack to allow compatibility with Windows.
-        It allows to define process functions embedded within other functions easily.
-        Check here for more info:
-        https://stackoverflow.com/questions/72766345/attributeerror-cant-pickle-local-object-in-multiprocessing.
-        https://stackoverflow.com/questions/29007619/python-typeerror-pickling-an-authenticationstring-object-is-disallowed-for-sec.
-    """
-
-    def __init__ (self, *args, **kwargs) :
-        super().__init__(*args, **kwargs)
-        if platform.system() == "Windows" :
-            self._target = dill.dumps(self._target)
-
-    def run (self) :
-        if platform.system() == "Windows" :
-            self._target = dill.loads(self._target)
-            self._target(*self._args, **self._kwargs)
-        else :
-            super().run()
-    
-    def __getstate__ (self) :
-        if platform.system() == "Windows" :
-            state = self.__dict__.copy()
-            conf = state['_config']
-            if 'authkey' in conf:
-                conf['authkey'] = bytes(conf['authkey'])
-            return state
-        else :
-            return super.__getstate__(self)
-
-    def __setstate__ (self, state) :
-        if platform.system() == "Windows" :
-            state['_config']['authkey'] = multiprocessing.process.AuthenticationString(state['_config']['authkey'])
-            self.__dict__.update(state)
-        else :
-            return super.__setstate__(self, state)
-
 #####################################################################################################################################################
 
 class PyRat (gym.Env) :
@@ -250,8 +207,8 @@ class PyRat (gym.Env) :
         self.moves_history = None
         self.turn = None
         self.done = None
-        self.gui_process = None
-        self.gui_process_queue = None
+        self.gui_thread = None
+        self.gui_thread_queue = None
         self.reset()
         
     #############################################################################################################################################
@@ -301,8 +258,8 @@ class PyRat (gym.Env) :
                         "turns" : -1}
         self.turn = 0
         self.done = False
-        self.gui_process = None
-        self.gui_process_queue = multiprocessing.Manager().Queue()
+        self.gui_thread = None
+        self.gui_thread_queue = queue.Queue()
 
         # Initialize the maze
         self.maze, self.maze_public, self.maze_width, self.maze_height = self._create_maze()
@@ -565,11 +522,8 @@ class PyRat (gym.Env) :
                     print(save_template, file=output_file)
 
         # Wait for GUI to be exited to quit if there is one
-        if self.gui_process is not None and self.done :
-            self.gui_process.join()
-        for process in multiprocessing.active_children() :
-            process.terminate()
-            process.join()
+        if self.gui_thread is not None :
+            self.gui_thread.join()
         
     #############################################################################################################################################
     #                                                             RENDERING METHODS                                                             #
@@ -751,8 +705,8 @@ class PyRat (gym.Env) :
                 * None.
         """
 
-        # Define a function to run the GUI in a separate process
-        def gui_process_function () :
+        # Define a function to run the GUI in a separate thread
+        def gui_thread_function () :
             try :
                 
                 # Initialize the library and window
@@ -1184,8 +1138,8 @@ class PyRat (gym.Env) :
                 pygame.display.flip()
                 
                 # Run until the user asks to quit
-                current_player_locations = self.player_locations
-                current_cheese = self.cheese
+                current_player_locations = self.player_locations.copy()
+                current_cheese = self.cheese.copy()
                 mud_being_crossed = {player : 0 for player in self.player_locations}
                 traces = {player : [(player_elements[player][0] + player_elements[player][2].get_width() / 2, player_elements[player][1] + player_elements[player][2].get_height() / 2)] for player in self.player_locations}
                 trace_colors = {player : get_main_color(player_elements[player][2]) for player in self.player_locations}
@@ -1202,7 +1156,7 @@ class PyRat (gym.Env) :
                     try :
                         
                         # Get turn info
-                        team_scores, new_player_locations, mud_values, new_cheese, done, turn = self.gui_process_queue.get(False)
+                        team_scores, new_player_locations, mud_values, new_cheese, done, turn = self.gui_thread_queue.get(False)
                         
                         # Enter mud?
                         for player in current_player_locations :
@@ -1312,16 +1266,17 @@ class PyRat (gym.Env) :
             except :
                 pass
             
-        # Initialize the GUI in a different process
+        # Initialize the GUI in a different thread
         if self.turn == 0 :
-            self.gui_process = DillProcess(target=gui_process_function)
-            self.gui_process.start()
+            self.gui_thread = threading.Thread(target=gui_thread_function)
+            self.gui_thread.daemon = True
+            self.gui_thread.start()
         
         # At each turn, send current info to the thread
         else :
             new_player_locations = {player : self.player_muds[player]["target"] if self._is_in_mud(player) else self.player_locations[player] for player in self.player_locations}
             mud_values = {player : self.player_muds[player]["count"] for player in self.player_locations}
-            self.gui_process_queue.put((self._score_per_team(), new_player_locations, mud_values, self.cheese, self.done, self.turn))
+            self.gui_thread_queue.put((self._score_per_team(), new_player_locations, mud_values, self.cheese, self.done, self.turn))
             
     #############################################################################################################################################
     #                                                                GAME METHODS                                                               #
@@ -1589,8 +1544,8 @@ class PyRat (gym.Env) :
                 * stats ... dict : str -> Any ... Game statistics computed during the game.
         """
         
-        # Function to execute in a separate process per player
-        def player_process_function (player, input_queue, output_queue, turn_start_synchronizer, turn_timeout_lock, turn_end_synchronizer) :
+        # Function to execute in a separate thread per player
+        def player_thread_function (player, input_queue, output_queue, turn_start_synchronizer, turn_timeout_lock, turn_end_synchronizer) :
             try :
                 while True :
                     
@@ -1613,7 +1568,7 @@ class PyRat (gym.Env) :
                         
                         # Otherwise, we ask for a move
                         else :
-                            start = time.process_time()
+                            start = time.time()
                             if turn == 0 :
                                 action = "preprocessing_error"
                                 if self.player_functions[player]["preprocessing"] is not None :
@@ -1625,7 +1580,7 @@ class PyRat (gym.Env) :
                                 if a not in possible_actions :
                                     raise Exception("Invalid action %s by player %s" % (str(a), player))
                                 action = a
-                            duration = time.process_time() - start
+                            duration = time.time() - start
                     
                     # Print error message in case of a crash
                     except :
@@ -1642,8 +1597,8 @@ class PyRat (gym.Env) :
             except :
                 pass
 
-        # Function to execute in a separate process per player to handle timeouts
-        def waiter_process_function (input_queue, turn_start_synchronizer) :
+        # Function to execute in a separate thread per player to handle timeouts
+        def waiter_thread_function (input_queue, turn_start_synchronizer) :
             try :
                 while True :
                     _ = input_queue.get()
@@ -1654,23 +1609,22 @@ class PyRat (gym.Env) :
         # Reset the game
         if reset :
             self.reset()
-        
-        # Initial rendering of the maze
-        self.render()
 
         # We catch exceptions that may happen during the game
         try :
         
             # Create a thread per player
-            turn_start_synchronizer = multiprocessing.Manager().Barrier(len(self.player_locations) + 1)
-            turn_timeout_lock = multiprocessing.Manager().Lock()
-            player_processes = {}
+            turn_start_synchronizer = threading.Barrier(len(self.player_locations) + 1)
+            turn_timeout_lock = threading.Lock()
+            player_threads = {}
             for player in self.player_locations :
-                
-                # Create associated process
-                player_processes[player] = {"process" : None, "input_queue" : multiprocessing.Manager().Queue(), "output_queue" : multiprocessing.Manager().Queue(), "turn_end_synchronizer" : multiprocessing.Barrier(2)}
-                player_processes[player]["process"] = DillProcess(target=player_process_function, args=(player, player_processes[player]["input_queue"], player_processes[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_processes[player]["turn_end_synchronizer"],))
-                player_processes[player]["process"].start()
+                player_threads[player] = {"thread" : None, "input_queue" : queue.Queue(), "output_queue" : queue.Queue(), "turn_end_synchronizer" : threading.Barrier(2)}
+                player_threads[player]["thread"] = threading.Thread(target=player_thread_function, args=(player, player_threads[player]["input_queue"], player_threads[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_threads[player]["turn_end_synchronizer"],))
+                player_threads[player]["thread"].daemon = True
+                player_threads[player]["thread"].start()
+
+            # Initial rendering of the maze
+            self.render()
 
             # Get some info once and for all
             maze, maze_width, maze_height, teams, possible_actions = self.get_description()
@@ -1678,22 +1632,23 @@ class PyRat (gym.Env) :
 
             # If playing asynchrounously, we create threads to wait instead of missing players
             if not self.synchronous :
-                waiter_processes = {}
-                for player in player_processes :
-                    waiter_processes[player] = {"process" : None, "input_queue" : multiprocessing.Manager().Queue()}
-                    waiter_processes[player]["process"] = DillProcess(target=waiter_process_function, args=(waiter_processes[player]["input_queue"], turn_start_synchronizer,))
-                    waiter_processes[player]["process"].start()
+                waiter_threads = {}
+                for player in player_threads :
+                    waiter_threads[player] = {"thread" : None, "input_queue" : queue.Queue()}
+                    waiter_threads[player]["thread"] = threading.Thread(target=waiter_thread_function, args=(waiter_threads[player]["input_queue"], turn_start_synchronizer,))
+                    waiter_threads[player]["thread"].daemon = True
+                    waiter_threads[player]["thread"].start()
 
             # We play until the game is over
-            players_ready = list(player_processes.keys())
-            players_running = {player : True for player in player_processes}
+            players_ready = list(player_threads.keys())
+            players_running = {player : True for player in player_threads}
             while any(players_running.values()) :
 
                 # We communicate the state of the game to the players not in mud
                 player_locations, player_scores, player_muds, cheese = self.get_state()
                 for player in players_ready :
                     final_stats = self.stats if self.done else None
-                    player_processes[player]["input_queue"].put((maze, maze_width, maze_height, teams, possible_actions, player_locations, player_scores, player_muds, cheese, self.turn, final_stats))
+                    player_threads[player]["input_queue"].put((maze, maze_width, maze_height, teams, possible_actions, player_locations, player_scores, player_muds, cheese, self.turn, final_stats))
                 turn_start_synchronizer.wait()
 
                 # Wait some time
@@ -1701,70 +1656,70 @@ class PyRat (gym.Env) :
                 time.sleep(sleep_time)
 
                 # In synchronous mode, we wait for everyone
-                actions_as_text = {player : "postprocessing" for player in player_processes}
+                actions_as_text = {player : "postprocessing" for player in player_threads}
+                durations = {player : None for player in player_threads}
                 if self.synchronous :
-                    for player in player_processes :
-                        player_processes[player]["turn_end_synchronizer"].wait()
-                        actions_as_text[player], duration = player_processes[player]["output_queue"].get()
+                    for player in player_threads :
+                        player_threads[player]["turn_end_synchronizer"].wait()
+                        actions_as_text[player], durations[player] = player_threads[player]["output_queue"].get()
 
                 # Otherwise, we block the possibility to return an action and check who answered in time
                 else :
 
                     # Wait at least for those in mud
-                    for player in player_processes :
+                    for player in player_threads :
                         if self._is_in_mud(player) and players_running[player] :
-                            player_processes[player]["turn_end_synchronizer"].wait()
-                            actions_as_text[player], duration = player_processes[player]["output_queue"].get()
+                            player_threads[player]["turn_end_synchronizer"].wait()
+                            actions_as_text[player], durations[player] = player_threads[player]["output_queue"].get()
 
                     # For others, set timeout and wait for output info of those who passed just before timeout
                     with turn_timeout_lock :
-                        for player in player_processes :
+                        for player in player_threads :
                             if not self._is_in_mud(player) and players_running[player] :
-                                if not player_processes[player]["output_queue"].empty() :
-                                    player_processes[player]["turn_end_synchronizer"].wait()
-                                    actions_as_text[player], duration = player_processes[player]["output_queue"].get()
+                                if not player_threads[player]["output_queue"].empty() :
+                                    player_threads[player]["turn_end_synchronizer"].wait()
+                                    actions_as_text[player], durations[player] = player_threads[player]["output_queue"].get()
                                 else :
                                     actions_as_text[player] = "miss"
-                                    duration = None
                         
                 # Check which players are ready to continue
                 players_ready = []
-                for player in player_processes :
+                for player in player_threads :
                     if actions_as_text[player].startswith("postprocessing") :
                         players_running[player] = False
                     if not self.synchronous and (actions_as_text[player].startswith("postprocessing") or actions_as_text[player] == "miss") :
-                        waiter_processes[player]["input_queue"].put(True)
+                        waiter_threads[player]["input_queue"].put(True)
                     else :
                         players_ready.append(player)
 
                 # Check for errors
-                if any([actions_as_text[player].endswith("error") for player in player_processes]) and not self.continue_on_error :
+                if any([actions_as_text[player].endswith("error") for player in player_threads]) and not self.continue_on_error :
                     raise Exception("A player has crashed, exiting")
 
                 # We save the turn info if we are not postprocessing
                 if not self.done :
                 
                     # Save stats
-                    for player in player_processes :
+                    for player in player_threads :
                         if not actions_as_text[player].startswith("preprocessing") :
                             self.stats["players"][player]["moves"][actions_as_text[player]] += 1
                             if actions_as_text[player] != "mud" :
                                 self.moves_history[player].append("nothing" if actions_as_text[player] not in action_meanings.values() else actions_as_text[player])
-                        if duration is not None :
+                        if durations[player] is not None :
                             if actions_as_text[player].startswith("preprocessing") :
-                                self.stats["players"][player]["preprocessing_duration"] = duration
+                                self.stats["players"][player]["preprocessing_duration"] = durations[player]
                             else :
-                                self.stats["players"][player]["turn_durations"].append(duration)
+                                self.stats["players"][player]["turn_durations"].append(durations[player])
                         self.stats["players"][player]["score"] = self.player_scores[player]
                 
                     # Apply the actions
                     locations_before = self.player_locations.copy()
                     self.stats["turns"] = self.turn
-                    actions = {player : list(action_meanings.keys())[list(action_meanings.values()).index(actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing")] for player in player_processes}
+                    actions = {player : list(action_meanings.keys())[list(action_meanings.values()).index(actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing")] for player in player_threads}
                     self.step(actions)
                     
                     # Correct stats if we went into a wall
-                    for player in player_processes :
+                    for player in player_threads :
                         if actions_as_text[player] in ["north", "west", "south", "east"] and locations_before[player] == self.player_locations[player] and not self._is_in_mud(player) :
                             self.stats["players"][player]["moves"]["wall"] += 1
                             self.stats["players"][player]["moves"][actions_as_text[player]] -= 1
@@ -1776,7 +1731,7 @@ class PyRat (gym.Env) :
         except :
             print(traceback.format_exc(), file=sys.stderr)
             self.stats = {}
-
+        
         # Cleanup
         self.close()
         

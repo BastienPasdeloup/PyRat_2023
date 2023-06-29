@@ -17,7 +17,6 @@
 
 # Standard imports
 import random
-import numpy
 
 # Import PyRat
 from pyrat import *
