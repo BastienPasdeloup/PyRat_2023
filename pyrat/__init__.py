@@ -109,16 +109,25 @@ class DillProcess (multiprocessing.Process) :
         Check here for more info: https://stackoverflow.com/questions/72766345/attributeerror-cant-pickle-local-object-in-multiprocessing.
     """
 
-    
-
     def __init__ (self, *args, **kwargs) :
         super().__init__(*args, **kwargs)
-        print(globals().keys())
-        self._target = dill.dumps(self._target)
+        try :
+            multiprocessing.set_start_method("fork")
+            print("aaaaaaa")
+        except ValueError :
+            self._target = dill.dumps(self._target)
+        except :
+            pass
 
     def run (self) :
         if self._target :
-            self._target = dill.loads(self._target)
+            try :
+                multiprocessing.set_start_method("fork")
+                print("aaaaaaa")
+            except ValueError :
+                self._target = dill.loads(self._target)
+            except :
+                pass
             self._target(*self._args, **self._kwargs)
 
 #####################################################################################################################################################
