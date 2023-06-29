@@ -1622,6 +1622,9 @@ class PyRat (gym.Env) :
         # We catch exceptions that may happen during the game
         try :
         
+            # Initial rendering of the maze
+            self.render()
+            
             # Create a thread per player
             turn_start_synchronizer = threading.Barrier(len(self.player_locations) + 1)
             turn_timeout_lock = threading.Lock()
@@ -1631,9 +1634,6 @@ class PyRat (gym.Env) :
                 player_threads[player]["thread"] = threading.Thread(target=player_thread_function, args=(player, player_threads[player]["input_queue"], player_threads[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_threads[player]["turn_end_synchronizer"],))
                 player_threads[player]["thread"].daemon = True
                 player_threads[player]["thread"].start()
-
-            # Initial rendering of the maze
-            self.render()
 
             # Get some info once and for all
             maze, maze_width, maze_height, teams, possible_actions = self.get_description()
