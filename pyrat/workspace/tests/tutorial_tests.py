@@ -17,7 +17,7 @@ import sys
 import os
 
 # Import the program to be tested
-sys.path.append(os.path.join("..", "programs"))
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "programs"))
 from tutorial import *
 
 #####################################################################################################################################################
