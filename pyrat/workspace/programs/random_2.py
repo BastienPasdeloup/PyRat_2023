@@ -46,7 +46,7 @@ def turn (maze, maze_width, maze_height, name, teams, player_locations, player_s
             * memory ............. threading.local ........................................ Dictionnary storing information to share between preprocessing, turn and postprocessing.
             
         Out:
-            * action ... list (str) ... One of the possible actions, as given in possible_actions.
+            * action ... list (str) ... One of the possible actions, as given in possible_actions
     """
 
     # Choose a random neighbor
