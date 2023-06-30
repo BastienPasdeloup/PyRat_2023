@@ -1471,12 +1471,12 @@ class PyRat (gym.Env) :
             Adds a player to the game.
             
             In:
-                * name ...................... str .................................................................................................................................................................................................................................................. Name of the player.
-                * turn_function ............. function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str) -> str ......................... Function used to control the player at each turn.
-                * preprocessing_function .... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), list (int), list (str) -> None .................................................................................... Preprocessing function used by the player at the beginning of the game (optional).
-                * postprocessing_function ... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str), (dict : str -> Any) -> None ... Function called at the end of the game (optional).
-                * team ...................... str .................................................................................................................................................................................................................................................. Team of the player.
-                * location .................. str [or] int ......................................................................................................................................................................................................................................... Controls initial location of the player (random, same, center, or a fixed index).
+                * name ...................... str ................................................................................................................................................................................................................................................................... Name of the player.
+                * turn_function ............. function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str), threading.local -> str ......................... Function used to control the player at each turn.
+                * preprocessing_function .... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), list (int), list (str), threading.local -> None .................................................................................... Preprocessing function used by the player at the beginning of the game (optional).
+                * postprocessing_function ... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str), threading.local, (dict : str -> Any) -> None ... Function called at the end of the game (optional).
+                * team ...................... str ................................................................................................................................................................................................................................................................... Team of the player.
+                * location .................. str [or] int .......................................................................................................................................................................................................................................................... Controls initial location of the player (random, same, center, or a fixed index).
             
             Out:
                 * None.
@@ -1556,6 +1556,7 @@ class PyRat (gym.Env) :
         # Function to execute in a separate thread per player
         def player_thread_function (player, input_queue, output_queue, turn_start_synchronizer, turn_timeout_lock, turn_end_synchronizer) :
             try :
+                memory = threading.local()
                 while True :
                     
                     # Wait for all players ready
@@ -1568,7 +1569,7 @@ class PyRat (gym.Env) :
                         if final_stats is not None :
                             action = "postprocessing_error"
                             if self.player_functions[player]["postprocessing"] is not None :
-                                self.player_functions[player]["postprocessing"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, final_stats)
+                                self.player_functions[player]["postprocessing"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory, final_stats)
                             action = "postprocessing"
                             
                         # If in mud, we return immediately (main thread will wait for us in all cases)
@@ -1581,11 +1582,11 @@ class PyRat (gym.Env) :
                             if turn == 0 :
                                 action = "preprocessing_error"
                                 if self.player_functions[player]["preprocessing"] is not None :
-                                    self.player_functions[player]["preprocessing"](maze, maze_width, maze_height, player, teams, player_locations, cheese, possible_actions)
+                                    self.player_functions[player]["preprocessing"](maze, maze_width, maze_height, player, teams, player_locations, cheese, possible_actions, memory)
                                 action = "preprocessing"
                             else :
                                 action = "error"
-                                a = self.player_functions[player]["turn"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions)
+                                a = self.player_functions[player]["turn"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory)
                                 if a not in possible_actions :
                                     raise Exception("Invalid action %s by player %s" % (str(a), player))
                                 action = a
