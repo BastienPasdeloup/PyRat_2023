@@ -22,8 +22,8 @@ from pyrat import *
 
 # Import the program to be tested
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "programs"))
-import random_2 as program_1
-import random_5 as program_2
+import random_1 as program_1
+import random_3 as program_2
 
 #####################################################################################################################################################
 ############################################################### VARIABLES & CONSTANTS ###############################################################

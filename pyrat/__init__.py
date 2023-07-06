@@ -212,6 +212,8 @@ class PyRat (gym.Env) :
         self.done = None
         self.gui_thread = None
         self.gui_thread_queue = None
+        self.gui_screen = None
+        self.gui_running = None
         self.reset()
         
     #############################################################################################################################################
@@ -261,7 +263,9 @@ class PyRat (gym.Env) :
         self.turn = 0
         self.done = False
         self.gui_thread = None
-        self.gui_thread_queue = queue.Queue()
+        self.gui_thread_queue = None
+        self.gui_screen = None
+        self.gui_running = None
 
         # Initialize the maze
         self.maze, self.maze_public, self.maze_width, self.maze_height = self._create_maze()
@@ -711,14 +715,6 @@ class PyRat (gym.Env) :
         def gui_thread_function (gui_initialized_synchronizer) :
             try :
                 
-                # Initialize the window
-                pygame.init()
-                if self.fullscreen :
-                    screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
-                    pygame.display.toggle_fullscreen()
-                else :
-                    screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
-                
                 # We will store elements to display
                 maze_elements = []
                 avatar_elements = []
@@ -878,7 +874,7 @@ class PyRat (gym.Env) :
                 pygame.display.set_icon(icon)
                 
                 # Set background color
-                pygame.draw.rect(screen, background_color, pygame.Rect(0, 0, window_width, window_height))
+                pygame.draw.rect(self.gui_screen, background_color, pygame.Rect(0, 0, window_width, window_height))
                 
                 # Add cells
                 for row in range(self.maze_height) :
@@ -1087,27 +1083,27 @@ class PyRat (gym.Env) :
 
                 # Show maze
                 def show_maze () :
-                    pygame.draw.rect(screen, background_color, pygame.Rect(maze_x_offset, maze_y_offset, game_area_width, game_area_height))
+                    pygame.draw.rect(self.gui_screen, background_color, pygame.Rect(maze_x_offset, maze_y_offset, game_area_width, game_area_height))
                     for surface_x, surface_y, surface in maze_elements :
-                        screen.blit(surface, (surface_x, surface_y))
+                        self.gui_screen.blit(surface, (surface_x, surface_y))
                 show_maze()
                 
                 # Show cheese
                 def show_cheese (cheese) :
                     for c in cheese :
                         cheese_x, cheese_y, surface = cheese_elements[c]
-                        screen.blit(surface, (cheese_x, cheese_y))
+                        self.gui_screen.blit(surface, (cheese_x, cheese_y))
                 show_cheese(self.cheese)
                 
                 # Show_players at initial locations
                 for p in player_elements :
                     player_x, player_y, player_neutral, _, _ , _, _ = player_elements[p]
-                    screen.blit(player_neutral, (player_x, player_y))
+                    self.gui_screen.blit(player_neutral, (player_x, player_y))
                 
                 # Show avatars
                 def show_avatars () :
                     for surface_x, surface_y, surface in avatar_elements :
-                        screen.blit(surface, (surface_x, surface_y))
+                        self.gui_screen.blit(surface, (surface_x, surface_y))
                 show_avatars()
                 
                 # Show scores
@@ -1119,14 +1115,14 @@ class PyRat (gym.Env) :
                     for team in score_locations :
                         score_x_offset, score_margin, score_y_offset = score_locations[team]
                         for i in range(int(team_scores[team])) :
-                            screen.blit(cheese_eaten, (score_x_offset + i * score_margin, score_y_offset))
+                            self.gui_screen.blit(cheese_eaten, (score_x_offset + i * score_margin, score_y_offset))
                         if int(team_scores[team]) != team_scores[team] :
                             cheese_partial = surface_from_image(os.path.join("gui", "cheese", "cheese_eaten.png"), cheese_score_size)
                             cheese_partial = colorize(cheese_partial, [(team_scores[team] - int(team_scores[team])) * 255] * 3)
                             cheese_partial = add_color_border(cheese_partial, cheese_score_border_color, cheese_score_border_width)
-                            screen.blit(cheese_partial, (score_x_offset + int(team_scores[team]) * score_margin, score_y_offset))
+                            self.gui_screen.blit(cheese_partial, (score_x_offset + int(team_scores[team]) * score_margin, score_y_offset))
                         for j in range(int(numpy.ceil(team_scores[team])), self.nb_cheese) :
-                            screen.blit(cheese_missing, (score_x_offset + j * score_margin, score_y_offset))
+                            self.gui_screen.blit(cheese_missing, (score_x_offset + j * score_margin, score_y_offset))
                 show_scores(self._score_per_team())
                 
                 # Show preprocessing message
@@ -1136,7 +1132,7 @@ class PyRat (gym.Env) :
                 go_image = add_color_border(go_image, main_image_border_color, main_image_border_size)
                 main_image_x = maze_x_offset + (game_area_width - preprocessing_image.get_width()) / 2
                 main_image_y = maze_y_offset + (game_area_height - preprocessing_image.get_height()) / 2
-                screen.blit(preprocessing_image, (main_image_x, main_image_y))
+                self.gui_screen.blit(preprocessing_image, (main_image_x, main_image_y))
                 
                 # Prepare useful variables
                 current_player_locations = self.player_locations.copy()
@@ -1145,26 +1141,19 @@ class PyRat (gym.Env) :
                 traces = {player : [(player_elements[player][0] + player_elements[player][2].get_width() / 2, player_elements[player][1] + player_elements[player][2].get_height() / 2)] for player in self.player_locations}
                 trace_colors = {player : get_main_color(player_elements[player][2]) for player in self.player_locations}
                 player_surfaces = {player : player_elements[player][2] for player in self.player_locations}
-                running = True
 
                 # Show and indicate when ready
                 pygame.display.flip()
+                self.gui_running = True
                 gui_initialized_synchronizer.wait()
 
                 # Run until the user asks to quit
-                while running :
-                
-                    # Stop when the window is closed or escape key is pressed
-                    for event in pygame.event.get() :
-                        if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE) :
-                            running = False
-                    
-                    # Update display
+                while self.gui_running :
                     try :
-                        
+
                         # Get turn info
                         team_scores, new_player_locations, mud_values, new_cheese, done, turn = self.gui_thread_queue.get(False)
-                        
+
                         # Enter mud?
                         for player in current_player_locations :
                             if mud_values[player] > 0 and mud_being_crossed[player] == 0 :
@@ -1212,22 +1201,22 @@ class PyRat (gym.Env) :
                                 if i == animation_steps - 1 and mud_values[player] == 0 :
                                     player_elements[player] = (next_x, next_y, player_neutral, player_north, player_south, player_west, player_east)
                                 if self.trace_length > 0 :
-                                    pygame.draw.line(screen, trace_colors[player], (next_x + player_surfaces[player].get_width() / 2, next_y + player_surfaces[player].get_height() / 2), traces[player][-1], width=trace_size)
+                                    pygame.draw.line(self.gui_screen, trace_colors[player], (next_x + player_surfaces[player].get_width() / 2, next_y + player_surfaces[player].get_height() / 2), traces[player][-1], width=trace_size)
                                     for j in range(1, self.trace_length) :
                                         if len(traces[player]) > j :
-                                            pygame.draw.line(screen, trace_colors[player], traces[player][-j-1], traces[player][-j], width=trace_size)
+                                            pygame.draw.line(self.gui_screen, trace_colors[player], traces[player][-j-1], traces[player][-j], width=trace_size)
                                     if len(traces[player]) == self.trace_length + 1 :
                                         final_segment_length = numpy.sqrt((traces[player][-1][0] - (next_x + player_surfaces[player].get_width() / 2))**2 + (traces[player][-1][1] - (next_y + player_surfaces[player].get_height() / 2))**2)
                                         ratio = 1 - final_segment_length / cell_size
-                                        pygame.draw.line(screen, trace_colors[player], traces[player][1], (traces[player][1][0] + ratio * (traces[player][0][0] - traces[player][1][0]), traces[player][1][1] + ratio * (traces[player][0][1] - traces[player][1][1])), width=trace_size)
-                                screen.blit(player_surfaces[player], (next_x, next_y))
+                                        pygame.draw.line(self.gui_screen, trace_colors[player], traces[player][1], (traces[player][1][0] + ratio * (traces[player][0][0] - traces[player][1][0]), traces[player][1][1] + ratio * (traces[player][0][1] - traces[player][1][1])), width=trace_size)
+                                self.gui_screen.blit(player_surfaces[player], (next_x, next_y))
                             
                             # Indicate when preprocessing is over
                             if turn == 1 :
-                                screen.blit(go_image, (main_image_x, main_image_y))
+                                self.gui_screen.blit(go_image, (main_image_x, main_image_y))
                             
-                            # Show & wait for animation
-                            pygame.display.flip()
+                            # Update maze & wait for animation
+                            pygame.display.update((maze_x_offset, maze_y_offset, self.maze_width * cell_size, self.maze_height * cell_size))
                             time.sleep(animation_time / animation_steps)
 
                         # Exit mud?
@@ -1249,7 +1238,6 @@ class PyRat (gym.Env) :
                         # Update score
                         show_avatars()
                         show_scores(team_scores)
-                        pygame.display.flip()
                         current_cheese = new_cheese
                         
                         # Indicate if the game is over
@@ -1260,8 +1248,8 @@ class PyRat (gym.Env) :
                                 if i > 0 and sorted_results[i][0] != sorted_results[i-1][0] and len(medals) > 1 :
                                     del medals[0]
                                 team = sorted_results[i][1]
-                                screen.blit(medals[0], (medal_locations[team][0] - medals[0].get_width() / 2, medal_locations[team][1] - medals[0].get_height() / 2))
-                            pygame.display.flip()
+                                self.gui_screen.blit(medals[0], (medal_locations[team][0] - medals[0].get_width() / 2, medal_locations[team][1] - medals[0].get_height() / 2))
+                        pygame.display.update((0, 0, maze_x_offset, window_height))
                         
                     # Ignore exceptions raised due to emtpy queue
                     except queue.Empty :
@@ -1272,11 +1260,18 @@ class PyRat (gym.Env) :
                 
             except :
                 pass
-            
-        # Initialize the GUI in a different thread
+
+        # Initialize the GUI in a different thread at turn 0
         if self.turn == 0 :
+            pygame.init()
+            if self.fullscreen :
+                self.gui_screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
+                pygame.display.toggle_fullscreen()
+            else :
+                self.gui_screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
             gui_initialized_synchronizer = threading.Barrier(2)
             self.gui_thread = threading.Thread(target=gui_thread_function, args=(gui_initialized_synchronizer,))
+            self.gui_thread_queue = queue.Queue()
             self.gui_thread.daemon = True
             self.gui_thread.start()
             gui_initialized_synchronizer.wait()
@@ -1286,7 +1281,16 @@ class PyRat (gym.Env) :
             new_player_locations = {player : self.player_muds[player]["target"] if self._is_in_mud(player) else self.player_locations[player] for player in self.player_locations}
             mud_values = {player : self.player_muds[player]["count"] for player in self.player_locations}
             self.gui_thread_queue.put((self._score_per_team(), new_player_locations, mud_values, self.cheese, self.done, self.turn))
-            
+        
+        # Stop when the window is closed or escape key is pressed
+        while self.gui_running :
+            for event in pygame.event.get() :
+                if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE) :
+                    self.gui_running = False
+            if not self.done :
+                break
+            time.sleep(0.1)
+        
     #############################################################################################################################################
     #                                                                GAME METHODS                                                               #
     #############################################################################################################################################
@@ -1471,12 +1475,12 @@ class PyRat (gym.Env) :
             Adds a player to the game.
             
             In:
-                * name ...................... str ................................................................................................................................................................................................................................................................... Name of the player.
-                * turn_function ............. function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str), threading.local -> str ......................... Function used to control the player at each turn.
-                * preprocessing_function .... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), list (int), list (str), threading.local -> None .................................................................................... Preprocessing function used by the player at the beginning of the game (optional).
-                * postprocessing_function ... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str), threading.local, (dict : str -> Any) -> None ... Function called at the end of the game (optional).
-                * team ...................... str ................................................................................................................................................................................................................................................................... Team of the player.
-                * location .................. str [or] int .......................................................................................................................................................................................................................................................... Controls initial location of the player (random, same, center, or a fixed index).
+                * name ...................... str .................................................................................................................................................................................................................................................. Name of the player.
+                * turn_function ............. function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str) -> str ......................... Function used to control the player at each turn.
+                * preprocessing_function .... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), list (int), list (str) -> None .................................................................................... Preprocessing function used by the player at the beginning of the game (optional).
+                * postprocessing_function ... function : (numpy.ndarray [or] dict : int -> (dict : int -> int)), int, int, str, (dict : str -> list (str)), (dict : str -> int), (dict : str -> float), (dict : str -> (dict : str -> int)), list (int), list (str), (dict : str -> Any) -> None ... Function called at the end of the game (optional).
+                * team ...................... str .................................................................................................................................................................................................................................................. Team of the player.
+                * location .................. str [or] int ......................................................................................................................................................................................................................................... Controls initial location of the player (random, same, center, or a fixed index).
             
             Out:
                 * None.
@@ -1741,6 +1745,7 @@ class PyRat (gym.Env) :
         except :
             print(traceback.format_exc(), file=sys.stderr)
             self.stats = {}
+            self.gui_running = False
             pygame.quit()
         
         # Clean before returning
