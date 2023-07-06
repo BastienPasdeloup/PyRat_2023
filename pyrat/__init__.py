@@ -1765,7 +1765,6 @@ class PyRat (gym.Env) :
                 * None.
                 
             Out:
-            
                 * maze ............... numpy.ndarray [or] dict : int -> (dict : int -> int) ... Map of the maze, in the public format as chosen in constructor.
                 * maze_width ......... int .................................................... Width of the maze in number of cells.
                 * maze_height ........ int .................................................... Height of the maze in number of cells.
