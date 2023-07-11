@@ -16,6 +16,7 @@ import numpy
 import matplotlib.pyplot as pyplot
 import scipy.stats
 import os
+import tqdm
 
 # Import PyRat
 from pyrat import *
@@ -23,7 +24,7 @@ from pyrat import *
 # Import the program to be tested
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "programs"))
 import random_1 as program_1
-import random_3 as program_2
+import random_2 as program_2
 
 #####################################################################################################################################################
 ############################################################### VARIABLES & CONSTANTS ###############################################################
@@ -99,7 +100,7 @@ if __name__ == "__main__" :
 
     # Run multiple games
     results = []
-    for seed in range(NB_GAMES) :
+    for seed in tqdm.tqdm(range(NB_GAMES), desc="Game", position=0, leave=False) :
         
         # Store score difference as result
         stats = run_one_game(seed, program_1, program_2)

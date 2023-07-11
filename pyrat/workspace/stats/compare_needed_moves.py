@@ -16,6 +16,7 @@ import numpy
 import matplotlib.pyplot as pyplot
 import scipy.stats
 import os
+import tqdm
 
 # Import PyRat
 from pyrat import *
@@ -103,9 +104,8 @@ if __name__ == "__main__" :
 
     # Run multiple games for each player
     results = {program.__name__ : {"turns" : [], "preprocessing_duration" : [], "turn_durations" : []} for program in programs}
-    for program in programs :
-        print("Working on program", program.__name__)
-        for seed in range(NB_GAMES) :
+    for program in tqdm.tqdm(programs, desc="Program", position=0, leave=False) :
+        for seed in tqdm.tqdm(range(NB_GAMES), desc="Game", position=1, leave=False) :
         
             # Here we are interested in the number of turns needed to complete the game, as well as the time it takes 
             stats = run_one_game(seed, program)
