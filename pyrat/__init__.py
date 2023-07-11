@@ -242,12 +242,10 @@ class PyRat (gym.Env) :
             self.game_random_seed_maze = seed
             self.game_random_seed_cheese = seed
             self.game_random_seed_players = seed
-            print("Starting game with --random_seed=%d" % (seed), file=sys.stderr)
         else :
             self.game_random_seed_maze = nprandom.randint(numpy.iinfo(numpy.int32).max) if seed_maze is None else seed_maze
             self.game_random_seed_cheese = nprandom.randint(numpy.iinfo(numpy.int32).max) if seed_cheese is None else seed_cheese
             self.game_random_seed_players = nprandom.randint(numpy.iinfo(numpy.int32).max) if seed_players is None else seed_players
-            print("Starting game with --random_seed_maze=%d --random_seed_cheese=%d --random_seed_players=%d" % (self.game_random_seed_maze, self.game_random_seed_cheese, self.game_random_seed_players), file=sys.stderr)
     
         # Set game elements
         self.teams = {}
