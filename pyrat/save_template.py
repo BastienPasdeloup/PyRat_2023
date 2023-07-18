@@ -4,7 +4,7 @@
 
 """
     This file has been exported by the PyRat software using the "--save_game" option.
-    When executed, it reproduces the moves that were made by the players in the same environment.
+    When executed, it reproduces the actions that were made by the players in the same environment.
     The original programs are not called again.
 """
 

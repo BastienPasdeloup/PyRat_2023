@@ -3,8 +3,8 @@
 #####################################################################################################################################################
 
 """
-    This program controls a PyRat player by performing random moves.
-    More precisely, at each turn, a random choice among all possible moves is selected.
+    This program controls a PyRat player by performing random actions.
+    More precisely, at each turn, a random choice among all possible actions is selected.
     Note that this doesn't take into account the structure of the maze.
 """
 
@@ -64,7 +64,11 @@ if __name__ == "__main__" :
               "maze_height" : 11,
               "mud_percentage" : 0.0,
               "nb_cheese" : 1,
-              "trace_length": 1000}
+              "trace_length": 1000,
+              "synchronous": True,
+              "turn_time": 0,
+              "preprocessing_time": 0,
+              "render_mode": "no_rendering"}
 
     # Start the game
     game = PyRat(players, **config)

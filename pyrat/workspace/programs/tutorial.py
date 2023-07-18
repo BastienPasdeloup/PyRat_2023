@@ -199,7 +199,7 @@ def preprocessing (maze, maze_width, maze_height, name, teams, player_locations,
     neighbors = get_neighbors(player_locations[name], maze)
     print("neighbors", neighbors)
     
-    # Let's see how many moves it takes to reach all these neighbors
+    # Let's see how many actions it takes to reach all these neighbors
     for neighbor in neighbors :
         weight = get_weight(player_locations[name], neighbor, maze)
         print("Going from", player_locations[name], "to", neighbor, "takes", weight, "move(s)")

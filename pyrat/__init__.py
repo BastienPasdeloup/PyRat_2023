@@ -58,7 +58,7 @@ parser.add_argument("--maze_height",         type=int,                          
 parser.add_argument("--cell_percentage",     type=float,                                                 default=80.0,     help="Percentage of cells that can be accessed in the maze, 0%% being a useless maze, and 100%% being a full rectangular maze")
 parser.add_argument("--wall_percentage",     type=float,                                                 default=60.0,     help="Percentage of walls in the maze, 0%% being an empty maze, and 100%% being the maximum number of walls that keep the maze connected")
 parser.add_argument("--mud_percentage",      type=float,                                                 default=20.0,     help="Percentage of pairs of adjacent cells that are separated by mud in the maze")
-parser.add_argument("--mud_range",           type=list_type,                                             default=[4, 9],   help="Interval of moves needed to cross mud")
+parser.add_argument("--mud_range",           type=list_type,                                             default=[4, 9],   help="Interval of turns needed to cross mud")
 parser.add_argument("--maze_representation", type=str, choices=["dictionary", "matrix"],                 default="matrix", help="Representation of the maze in memory as given to players")
 parser.add_argument("--fixed_maze",          type=str,                                                   default=None,     help="Fixed maze in any PyRat accepted representation (takes priority over any maze description and will automatically set maze_height and maze_width)")
 parser.add_argument("--nb_cheese",           type=int,                                                   default=21,       help="Number of pieces of cheese in the maze")
@@ -129,7 +129,7 @@ class PyRat (gym.Env) :
                 * cell_percentage ....... float ........................................................... Percentage of cells that can be accessed in the maze, 0%% being a useless maze, and 100%% being a full rectangular maze.
                 * wall_percentage ....... float ........................................................... Percentage of walls in the maze, 0%% being an empty maze, and 100%% being the maximum number of walls that keep the maze connected.
                 * mud_percentage ........ float ........................................................... Percentage of pairs of adjacent cells that are separated by mud in the maze.
-                * mud_range ............. list (int) ...................................................... Interval of moves needed to cross mud.
+                * mud_range ............. list (int) ...................................................... Interval of turns needed to cross mud.
                 * maze_representation ... str ............................................................. Representation of the maze in memory as given to players.
                 * fixed_maze ............ str [or] numpy.ndarray [or] dict : int -> (dict : int -> int) ... Fixed maze in any PyRat accepted representation (takes priority over any maze description and will automatically set maze_height and maze_width).
                 * nb_cheese ............. int ............................................................. Number of pieces of cheese in the maze.
@@ -207,7 +207,7 @@ class PyRat (gym.Env) :
         self.player_muds = None
         self.player_traces = None
         self.stats = None
-        self.moves_history = None
+        self.actions_history = None
         self.turn = None
         self.done = None
         self.gui_thread = None
@@ -255,7 +255,7 @@ class PyRat (gym.Env) :
         self.player_scores = {}
         self.player_muds = {}
         self.player_traces = {}
-        self.moves_history = {}
+        self.actions_history = {}
         self.stats = {"players" : {},
                         "turns" : -1}
         self.turn = 0
@@ -519,7 +519,7 @@ class PyRat (gym.Env) :
             output_file_name = os.path.join(self.save_path, datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f.py"))
             with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "save_template.py"), "r") as save_template_file :
                 save_template = save_template_file.read()
-                save_template = save_template.replace("{ACTIONS}", str(self.moves_history).replace("], '", "],\n                      '"))
+                save_template = save_template.replace("{ACTIONS}", str(self.actions_history).replace("], '", "],\n                      '"))
                 save_template = save_template.replace("{PLAYERS}", str([{"\"name\" : \"%s\", \"team\" : \"%s\", \"turn_function\" : turn, \"location\" : %d" % (player, [team for team in self.teams if player in self.teams[team]][0], self.player_initial_locations[player])} for player in self.player_locations]).replace("'", "").replace("},", "},\n              "))
                 save_template = save_template.replace("{CONFIG}", str(config).replace(", '", ",\n              '"))
                 with open(output_file_name, "w") as output_file :
@@ -1522,13 +1522,13 @@ class PyRat (gym.Env) :
         # Initialize other elements
         self.player_scores[name] = 0
         self.player_muds[name] = {"target" : None,
-                                    "count" : 0}
+                                  "count" : 0}
         self.player_traces[name] = []
         self.player_functions[name] = {"preprocessing" : preprocessing_function,
-                                        "postprocessing" : postprocessing_function,
-                                        "turn" : turn_function}
-        self.moves_history[name] = []
-        self.stats["players"][name] = {"moves" : {"mud" : 0,
+                                       "postprocessing" : postprocessing_function,
+                                       "turn" : turn_function}
+        self.actions_history[name] = []
+        self.stats["players"][name] = {"actions" : {"mud" : 0,
                                                     "error" : 0,
                                                     "miss" : 0,
                                                     "nothing" : 0,
@@ -1537,9 +1537,9 @@ class PyRat (gym.Env) :
                                                     "south" : 0,
                                                     "west" : 0,
                                                     "wall" : 0},
-                                        "score" : 0,
-                                        "turn_durations" : [],
-                                        "preprocessing_duration" : None}
+                                       "score" : 0,
+                                       "turn_durations" : [],
+                                       "preprocessing_duration" : None}
         
     #############################################################################################################################################
 
@@ -1714,9 +1714,9 @@ class PyRat (gym.Env) :
                     # Save stats
                     for player in player_threads :
                         if not actions_as_text[player].startswith("preprocessing") :
-                            self.stats["players"][player]["moves"][actions_as_text[player]] += 1
+                            self.stats["players"][player]["actions"][actions_as_text[player]] += 1
                             if actions_as_text[player] != "mud" :
-                                self.moves_history[player].append("nothing" if actions_as_text[player] not in action_meanings.values() else actions_as_text[player])
+                                self.actions_history[player].append("nothing" if actions_as_text[player] not in action_meanings.values() else actions_as_text[player])
                         if durations[player] is not None :
                             if actions_as_text[player].startswith("preprocessing") :
                                 self.stats["players"][player]["preprocessing_duration"] = durations[player]
@@ -1733,8 +1733,8 @@ class PyRat (gym.Env) :
                     # Correct stats if we went into a wall
                     for player in player_threads :
                         if actions_as_text[player] in ["north", "west", "south", "east"] and locations_before[player] == self.player_locations[player] and not self._is_in_mud(player) :
-                            self.stats["players"][player]["moves"]["wall"] += 1
-                            self.stats["players"][player]["moves"][actions_as_text[player]] -= 1
+                            self.stats["players"][player]["actions"]["wall"] += 1
+                            self.stats["players"][player]["actions"][actions_as_text[player]] -= 1
 
                     # rendering of the maze
                     self.render()

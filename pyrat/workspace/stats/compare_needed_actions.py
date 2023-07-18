@@ -3,7 +3,7 @@
 #####################################################################################################################################################
 
 """
-    This script compares the needed number of moves to complete a game.
+    This script compares the needed number of actions to complete a game.
 """
 
 #####################################################################################################################################################
@@ -115,7 +115,7 @@ if __name__ == "__main__" :
 
     # Show results briefly
     for program in programs :
-        print("Program", program.__name__, "requires on average", numpy.mean(results[program.__name__]["turns"]), "moves, with an average preprocessing duration of", numpy.mean(results[program.__name__]["preprocessing_duration"]), "seconds, and an average turn duration of", numpy.mean(results[program.__name__]["turn_durations"]), "seconds")
+        print("Program", program.__name__, "requires on average", numpy.mean(results[program.__name__]["turns"]), "actions, with an average preprocessing duration of", numpy.mean(results[program.__name__]["preprocessing_duration"]), "seconds, and an average turn duration of", numpy.mean(results[program.__name__]["turn_durations"]), "seconds")
 
     # More formal statistics to check if these curves are statistically significant
     for i in range(len(programs)) :
