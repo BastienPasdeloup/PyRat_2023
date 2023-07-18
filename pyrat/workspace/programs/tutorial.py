@@ -175,7 +175,7 @@ def preprocessing (maze, maze_width, maze_height, name, teams, player_locations,
             * player_locations ... dict : str -> int ...................................... Locations for all players in the game.
             * cheese ............. list (int) ............................................. List of available pieces of cheese in the maze.
             * possible_actions ... list (str) ............................................. List of possible actions.
-            * memory ............. threading.local ........................................ Dictionnary storing information to share between preprocessing, turn and postprocessing.
+            * memory ............. threading.local ........................................ Local memory to share information between preprocessing, turn and postprocessing.
             
         Out:
             * None.
@@ -231,7 +231,7 @@ def turn (maze, maze_width, maze_height, name, teams, player_locations, player_s
             * player_muds ........ dict : str -> (dict : str -> int) ...................... Indicates which player is currently crossing mud.
             * cheese ............. list (int) ............................................. List of available pieces of cheese in the maze.
             * possible_actions ... list (str) ............................................. List of possible actions.
-            * memory ............. threading.local ........................................ Dictionnary storing information to share between preprocessing, turn and postprocessing.
+            * memory ............. threading.local ........................................ Local memory to share information between preprocessing, turn and postprocessing.
             
         Out:
             * action ... list (str) ... One of the possible actions, as given in possible_actions.
