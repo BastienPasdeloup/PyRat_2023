@@ -64,11 +64,7 @@ if __name__ == "__main__" :
               "maze_height" : 11,
               "mud_percentage" : 0.0,
               "nb_cheese" : 1,
-              "trace_length": 1000,
-              "synchronous": True,
-              "turn_time": 0,
-              "preprocessing_time": 0,
-              "render_mode": "no_rendering"}
+              "trace_length": 1000}
 
     # Start the game
     game = PyRat(players, **config)
