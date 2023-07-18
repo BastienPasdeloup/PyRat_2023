@@ -87,7 +87,7 @@ def turn (maze, maze_width, maze_height, name, teams, player_locations, player_s
             * memory ............. threading.local ........................................ Local memory to share information between preprocessing, turn and postprocessing.
             
         Out:
-            * action ... list (str) ... One of the possible actions, as given in possible_actions.
+            * action ... str ... One of the possible actions, as given in possible_actions.
     """
 
     # [TODO] Write your turn code here and do not forget to return a possible action
