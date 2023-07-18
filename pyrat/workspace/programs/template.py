@@ -91,7 +91,8 @@ def turn (maze, maze_width, maze_height, name, teams, player_locations, player_s
     """
 
     # [TODO] Write your turn code here and do not forget to return a possible action
-    return possible_actions[0]
+    action = possible_actions[0]
+    return action
 
 #####################################################################################################################################################
 ######################################################## EXECUTED ONCE AT THE END OF THE GAME #######################################################
