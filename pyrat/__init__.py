@@ -1715,10 +1715,19 @@ class PyRat (gym.Env) :
                 # We save the turn info if we are not postprocessing
                 if not self.done :
                 
+                    # Apply the actions
+                    locations_before = self.player_locations.copy()
+                    actions = {player : list(action_meanings.keys())[list(action_meanings.values()).index(actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing")] for player in player_threads}
+                    self.step(actions)
+                    
                     # Save stats
                     for player in player_threads :
                         if not actions_as_text[player].startswith("preprocessing") :
-                            self.stats["players"][player]["actions"][actions_as_text[player]] += 1
+                            if actions_as_text[player] in ["north", "west", "south", "east"] and locations_before[player] == self.player_locations[player] and not self._is_in_mud(player) :
+                                self.stats["players"][player]["actions"]["wall"] += 1
+                                self.stats["players"][player]["actions"][actions_as_text[player]] -= 1
+                            else :
+                                self.stats["players"][player]["actions"][actions_as_text[player]] += 1
                             if actions_as_text[player] != "mud" :
                                 self.actions_history[player].append("nothing" if actions_as_text[player] not in action_meanings.values() else actions_as_text[player])
                         if durations[player] is not None :
@@ -1727,19 +1736,8 @@ class PyRat (gym.Env) :
                             else :
                                 self.stats["players"][player]["turn_durations"].append(durations[player])
                         self.stats["players"][player]["score"] = self.player_scores[player]
-                
-                    # Apply the actions
-                    locations_before = self.player_locations.copy()
-                    self.stats["turns"] = self.turn
-                    actions = {player : list(action_meanings.keys())[list(action_meanings.values()).index(actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing")] for player in player_threads}
-                    self.step(actions)
+                    self.stats["turns"] = self.turn - 1
                     
-                    # Correct stats if we went into a wall
-                    for player in player_threads :
-                        if actions_as_text[player] in ["north", "west", "south", "east"] and locations_before[player] == self.player_locations[player] and not self._is_in_mud(player) :
-                            self.stats["players"][player]["actions"]["wall"] += 1
-                            self.stats["players"][player]["actions"][actions_as_text[player]] -= 1
-
                     # rendering of the maze
                     self.render()
 
