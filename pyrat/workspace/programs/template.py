@@ -102,7 +102,7 @@ def postprocessing (maze, maze_width, maze_height, name, teams, player_locations
 
     """
         This function is called once at the end of the game.
-        It is not timed, and just has for purpose to allow the player to gather some stats if needed.
+        It is not timed, and can be used to make some cleanup, analyses of the completed game, model training, etc.
         
         In:
             * maze ............... numpy.ndarray [or] dict : int -> (dict : int -> int) ... Map of the maze, as data type described by PyRat's "maze_representation" option.
