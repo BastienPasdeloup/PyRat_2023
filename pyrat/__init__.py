@@ -1498,7 +1498,7 @@ class PyRat (gym.Env) :
         # Set initial location
         if location == "random" :
             self.player_locations[name] = nprandom.choice(list(self.maze))
-        elif location == "same" :
+        elif location == "same" and len(self.player_locations) > 0 :
             self.player_locations[name] = list(self.player_locations.values())[-1]
         elif location == "center" :
             self.player_locations[name] = self._rc_to_i(self.maze_height // 2, self.maze_width // 2)
