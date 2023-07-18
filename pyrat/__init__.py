@@ -839,7 +839,11 @@ class PyRat (gym.Env) :
                         sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "gui", "players", player_name, sound_name)
                         playsound.playsound(sound_file, block=False)
                     except :
-                        play_sound("default", sound_name)
+                        try :
+                            sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "gui", "players", "default", sound_name)
+                            playsound.playsound(sound_file, block=False)
+                        except :
+                            pass
                 
                 # Function to load the avatar of a player
                 def load_player_avatar (player_name, scale) :
