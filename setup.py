@@ -33,7 +33,7 @@ setuptools.setup \
     license =                       "MIT",
     packages =                      setuptools.find_packages(),
     include_package_data =          True,
-    install_requires =              ["pygame", "gym", "colored", "distinctipy", "playsound==1.2.2", "numpy", "scipy", "tqdm"]
+    install_requires =              ["pygame", "colored", "distinctipy", "playsound==1.2.2", "numpy", "scipy", "tqdm"]
 )
 
 #####################################################################################################################################################
