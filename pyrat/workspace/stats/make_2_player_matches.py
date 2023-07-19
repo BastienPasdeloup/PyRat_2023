@@ -4,24 +4,26 @@
 
 """
     This script makes multiple games between two programs, and compares the obtained scores.
+    It performs two analyses: a quick average analysis and a formal 1 sample T test.
 """
 
 #####################################################################################################################################################
 ###################################################################### IMPORTS ######################################################################
 #####################################################################################################################################################
 
-# Standard imports
-import sys
-import numpy
-import matplotlib.pyplot as pyplot
-import scipy.stats
-import os
-import tqdm
-
 # Import PyRat
 from pyrat import *
 
-# Import the program to be tested
+# External imports
+import sys
+import matplotlib.pyplot as pyplot
+import scipy.stats
+import os
+import numpy
+import types
+import tqdm
+
+# Previously developed functions
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "programs"))
 import random_1 as program_1
 import random_2 as program_2
@@ -56,36 +58,37 @@ SYNCHRONOUS = True
 ##################################################################### FUNCTIONS #####################################################################
 #####################################################################################################################################################
 
-def run_one_game (seed, program_1, program_2) :
+def run_one_game ( seed:      int,
+                   program_1: types.ModuleType,
+                   program_2: types.ModuleType
+                 ) ->         Dict[str, Any]:
 
     """
         This function runs a PyRat game, with no GUI, for a given seed and program, and returns the obtained stats.
-        
         In:
-            * seed ........ int ...... Random seed used to create the game.
-            * program_1 ... module ... First program to use in that game.
-            * program_2 ... module ... Second program to use in that game.
-            
+            * seed:      Random seed used to create the game.
+            * program_1: First program to use in that game.
+            * program_2: Second program to use in that game.
         Out:
-            * stats ... dict : str -> Any ... Statistics output at the end of the game.
+            * stats:     Statistics output at the end of the game.
     """
 
     # Map the functions to the character
-    players = [{"name" : "rat", "team" : "1", "preprocessing_function" : program_1.preprocessing if "preprocessing" in dir(program_1) else None, "turn_function" : program_1.turn},
-               {"name" : "python", "team" : "2", "preprocessing_function" : program_2.preprocessing if "preprocessing" in dir(program_2) else None, "turn_function" : program_2.turn}]
+    players = [{"name": "rat", "team": "1", "preprocessing_function": program_1.preprocessing if "preprocessing" in dir(program_1) else None, "turn_function": program_1.turn},
+               {"name": "python", "team": "2", "preprocessing_function": program_2.preprocessing if "preprocessing" in dir(program_2) else None, "turn_function": program_2.turn}]
 
     # Customize the game elements
-    config = {"maze_width" : MAZE_WIDTH,
-              "maze_height" : MAZE_HEIGHT,
-              "mud_percentage" : MUD_PERCENTAGE,
-              "mud_range" : MUD_RANGE,
-              "wall_percentage" : WALL_PERCENTAGE,
-              "nb_cheese" : NB_CHEESE,
-              "render_mode" : "no_rendering",
-              "preprocessing_time" : PREPROCESSING_TIME,
-              "turn_time" : TURN_TIME,
-              "synchronous" : True,
-              "random_seed" : seed}
+    config = {"maze_width": MAZE_WIDTH,
+              "maze_height": MAZE_HEIGHT,
+              "mud_percentage": MUD_PERCENTAGE,
+              "mud_range": MUD_RANGE,
+              "wall_percentage": WALL_PERCENTAGE,
+              "nb_cheese": NB_CHEESE,
+              "render_mode": "no_rendering",
+              "preprocessing_time": PREPROCESSING_TIME,
+              "turn_time": TURN_TIME,
+              "synchronous": True,
+              "random_seed": seed}
         
     # Start the game
     game = PyRat(players, **config)
@@ -93,20 +96,23 @@ def run_one_game (seed, program_1, program_2) :
     return stats
     
 #####################################################################################################################################################
-######################################################################## GO ! #######################################################################
+######################################################################## GO! ########################################################################
 #####################################################################################################################################################
 
-if __name__ == "__main__" :
+if __name__ == "__main__":
 
     # Run multiple games
     results = []
-    for seed in tqdm.tqdm(range(NB_GAMES), desc="Game", position=0, leave=False) :
+    for seed in tqdm.tqdm(range(NB_GAMES), desc="Game", position=0, leave=False):
         
         # Store score difference as result
         stats = run_one_game(seed, program_1, program_2)
         results.append(int(stats["players"]["rat"]["score"] - stats["players"]["python"]["score"]))
         
     # Show results briefly
+    print("#" * 20)
+    print("#  Quick analysis  #")
+    print("#" * 20)
     rat_victories = [score for score in results if score > 0]
     python_victories = [score for score in results if score < 0]
     nb_draws = NB_GAMES - len(rat_victories) - len(python_victories)
@@ -115,6 +121,9 @@ if __name__ == "__main__" :
     print("Average score difference when %s wins:" % program_2.__name__, numpy.mean(numpy.abs(python_victories))if len(python_victories) > 0 else "n/a")
 
     # More formal statistics to check if the mean of the distribution is significantly different from 0
+    print("#" * 21)
+    print("#  Formal analysis  #")
+    print("#" * 21)
     test_result = scipy.stats.ttest_1samp(results, popmean=0.0)
     print("One sample T-test of the distribution:", test_result)
 
