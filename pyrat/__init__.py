@@ -224,14 +224,13 @@ class PyRat ():
     #############################################################################################################################################
 
     @staticmethod
-    def setup_workspace ( self: Self
-                        ) ->    None :
+    def setup_workspace () -> None :
 
         """
             Creates all the directories for a clean student workspace.
             Also creates a few default programs to start with.
             In:
-                * self: Reference to the current object.
+                * None.
             Out:
                 * None.
         """
