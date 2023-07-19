@@ -69,7 +69,7 @@ parser.add_argument("--preprocessing_time",  type=float,                        
 parser.add_argument("--turn_time",           type=float,                                                 default=0.1,      help="Time after which players will move in the maze, or miss a turn")
 parser.add_argument("--synchronous",         action="store_true",                                        default=False,    help="If set, waits for all players to return a move before moving, even if turn_time is exceeded",)
 parser.add_argument("--continue_on_error",   action="store_true",                                        default=False,    help="If a player crashes, continues the game anyway")
-parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",    help="Method to display the game, or None to play without rendering")
+parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",    help="Method to display the game, or no_rendering to play without rendering")
 parser.add_argument("--render_simplified",   action="store_true",                                        default=False,    help="If the maze is rendered, hides some elements that are not essential")
 parser.add_argument("--fullscreen",          action="store_true",                                        default=False,    help="Renders the game in fullscreen mode (GUI rendering only)")
 parser.add_argument("--trace_length",        type=int,                                                   default=0,        help="Maximum length of the trace to display when players are moving (GUI rendering only)")
@@ -134,7 +134,7 @@ class PyRat (gym.Env) :
                 * fixed_maze ............ str [or] numpy.ndarray [or] dict : int -> (dict : int -> int) ... Fixed maze in any PyRat accepted representation (takes priority over any maze description and will automatically set maze_height and maze_width).
                 * nb_cheese ............. int ............................................................. Number of pieces of cheese in the maze.
                 * fixed_cheese .......... str [or] list (int) ............................................. Fixed list of cheese (takes priority over random number of cheese).
-                * render_mode ........... str ............................................................. Method to display the game, or None to play without rendering.
+                * render_mode ........... str ............................................................. Method to display the game, or no_rendering to play without rendering.
                 * render_simplified ..... bool ............................................................ If the maze is rendered, hides some elements that are not essential.
                 * trace_length .......... int ............................................................. Maximum length of the trace to display when players are moving (GUI rendering only).
                 * fullscreen ............ bool ............................................................ Renders the game in fullscreen mode (GUI rendering only).
