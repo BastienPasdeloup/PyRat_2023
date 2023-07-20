@@ -108,7 +108,7 @@ def turn ( maze:             Union[numpy.ndarray, Dict[int, Dict[int, int]]],
         neighbor = random.choice(unvisited_neighbors)
         memory.visited_cells.append(neighbor)
         
-    # If there is no unvisited neighbor, move randomly
+    # If there is no unvisited neighbor, choose one randomly
     else:
         neighbor = random.choice(neighbors)
     

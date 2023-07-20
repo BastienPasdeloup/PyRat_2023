@@ -55,7 +55,7 @@ def turn ( maze:             Union[numpy.ndarray, Dict[int, Dict[int, int]]],
             * action:           One of the possible actions, as given in possible_actions.
     """
 
-    # Random possible move
+    # Random possible action
     action = random.choice(possible_actions)
     return action
 

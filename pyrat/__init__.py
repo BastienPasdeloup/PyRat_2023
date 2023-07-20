@@ -65,8 +65,8 @@ parser.add_argument("--fixed_cheese",        type=str,                          
 parser.add_argument("--save_path",           type=str,                                                   default=".",      help="Path where games are saved")
 parser.add_argument("--save_game",           action="store_true",                                        default=False,    help="Indicates if the game should be saved")
 parser.add_argument("--preprocessing_time",  type=float,                                                 default=3.0,      help="Time given to the players before the game starts")
-parser.add_argument("--turn_time",           type=float,                                                 default=0.1,      help="Time after which players will move in the maze, or miss a turn")
-parser.add_argument("--synchronous",         action="store_true",                                        default=False,    help="If set, waits for all players to return a move before moving, even if turn_time is exceeded",)
+parser.add_argument("--turn_time",           type=float,                                                 default=0.1,      help="Time after which players will miss a turn")
+parser.add_argument("--synchronous",         action="store_true",                                        default=False,    help="If set, waits for all players to return an action before moving, even if turn_time is exceeded",)
 parser.add_argument("--continue_on_error",   action="store_true",                                        default=False,    help="If a player crashes, continues the game anyway")
 parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",    help="Method to display the game, or no_rendering to play without rendering")
 parser.add_argument("--render_simplified",   action="store_true",                                        default=False,    help="If the maze is rendered, hides some elements that are not essential")
@@ -145,8 +145,8 @@ class PyRat ():
                 * save_path:           Path where games are saved.
                 * save_game:           Indicates if the game should be saved.
                 * preprocessing_time:  Time given to the players before the game starts.
-                * turn_time:           Time after which players will move in the maze, or miss a turn.
-                * synchronous:         If set, waits for all players to return a move before moving, even if turn_time is exceeded.
+                * turn_time:           Time after which players will miss a turn.
+                * synchronous:         If set, waits for all players to return an action before moving, even if turn_time is exceeded.
                 * continue_on_error:   If a player crashes, continues the game anyway.
                 
             Out:
@@ -276,7 +276,7 @@ class PyRat ():
                         elif player_muds[player]["target"] is not None:
                             action = "mud"
                         
-                        # Otherwise, we ask for a move
+                        # Otherwise, we ask for an action
                         else:
                             start = time.time()
                             if turn == 0:
