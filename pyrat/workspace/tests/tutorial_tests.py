@@ -72,7 +72,7 @@ class TestsTutorial (unittest.TestCase):
                 * args:   Arguments of the parent constructor.
                 * kwargs: Keyword arguments of the parent constructor.
             Out:
-                * self:   Reference to the current object.
+                * self: Reference to the current object.
         """
 
         # Inherit from parent class
@@ -131,7 +131,7 @@ class TestsTutorial (unittest.TestCase):
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]])
         
     #############################################################################################################################################
-    #                                                                 UNIT TESTS                                                                #
+    #                                                               PUBLIC METHODS                                                              #
     #############################################################################################################################################
 
     def test_get_vertices ( self: Self

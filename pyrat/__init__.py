@@ -93,30 +93,30 @@ class PyRat ():
 
     def __init__ ( self:                Self,
                    players:             List[Dict[str, Any]],
-                   random_seed:         Union[None, int]                                           = args.random_seed,
-                   random_seed_maze:    Union[None, int]                                           = args.random_seed_maze,
-                   random_seed_cheese:  Union[None, int]                                           = args.random_seed_cheese,
-                   random_seed_players: Union[None, int]                                           = args.random_seed_players,
-                   maze_width:          int                                                        = args.maze_width,
-                   maze_height:         int                                                        = args.maze_height,
-                   cell_percentage:     float                                                      = args.cell_percentage,
-                   wall_percentage:     float                                                      = args.wall_percentage,
-                   mud_percentage:      float                                                      = args.mud_percentage,
-                   mud_range:           List[int]                                                  = args.mud_range,
-                   maze_representation: str                                                        = args.maze_representation,
+                   random_seed:         Union[None, int] = args.random_seed,
+                   random_seed_maze:    Union[None, int] = args.random_seed_maze,
+                   random_seed_cheese:  Union[None, int] = args.random_seed_cheese,
+                   random_seed_players: Union[None, int] = args.random_seed_players,
+                   maze_width:          int = args.maze_width,
+                   maze_height:         int = args.maze_height,
+                   cell_percentage:     float = args.cell_percentage,
+                   wall_percentage:     float = args.wall_percentage,
+                   mud_percentage:      float = args.mud_percentage,
+                   mud_range:           List[int] = args.mud_range,
+                   maze_representation: str = args.maze_representation,
                    fixed_maze:          Union[None, str, numpy.ndarray, Dict[int, Dict[int, int]]] = args.fixed_maze,
-                   nb_cheese:           int                                                        = args.nb_cheese,
-                   fixed_cheese:        Union[None, str, List[int]]                                = args.fixed_cheese,
-                   render_mode:         str                                                        = args.render_mode,
-                   render_simplified:   bool                                                       = args.render_simplified,
-                   trace_length:        int                                                        = args.trace_length,
-                   fullscreen:          bool                                                       = args.fullscreen,
-                   save_path:           str                                                        = args.save_path,
-                   save_game:           bool                                                       = args.save_game,
-                   preprocessing_time:  float                                                      = args.preprocessing_time,
-                   turn_time:           float                                                      = args.turn_time,
-                   synchronous:         bool                                                       = args.synchronous,
-                   continue_on_error:   bool                                                       = args.continue_on_error
+                   nb_cheese:           int = args.nb_cheese,
+                   fixed_cheese:        Union[None, str, List[int]] = args.fixed_cheese,
+                   render_mode:         str = args.render_mode,
+                   render_simplified:   bool = args.render_simplified,
+                   trace_length:        int = args.trace_length,
+                   fullscreen:          bool = args.fullscreen,
+                   save_path:           str = args.save_path,
+                   save_game:           bool = args.save_game,
+                   preprocessing_time:  float = args.preprocessing_time,
+                   turn_time:           float = args.turn_time,
+                   synchronous:         bool = args.synchronous,
+                   continue_on_error:   bool = args.continue_on_error
                  ) ->                   Self:
 
         """
@@ -150,7 +150,7 @@ class PyRat ():
                 * continue_on_error:   If a player crashes, continues the game anyway.
                 
             Out:
-                * self:                Reference to the current object.
+                * self: Reference to the current object.
         """
 
         # Inherit from parent class
@@ -248,7 +248,7 @@ class PyRat ():
         """
             Starts a game, asking players for decisions until the game is over.
             In:
-                * self:  Reference to the current object.
+                * self: Reference to the current object.
             Out:
                 * stats: Game statistics computed during the game.
         """
@@ -515,8 +515,8 @@ class PyRat ():
         """
             Indicates if a player is in the mud.
             In:
-                * self:          Reference to the current object.
-                * player:        Player to check.
+                * self:   Reference to the current object.
+                * player: Player to check.
             Out:
                 * mud_indicator: Boolean telling if the player is in mud.
         """
@@ -533,7 +533,7 @@ class PyRat ():
         """
             Returns the score per team.
             In:
-                * self:   Reference to the current object.
+                * self: Reference to the current object.
             Out:
                 * scores: Dictionary of scores.
         """
@@ -554,7 +554,7 @@ class PyRat ():
                 * self:    Reference to the current object.
                 * actions: Action performed per player.                
             Out:
-                * done:    Whether the game is over.
+                * done: Whether the game is over.
         """
 
         # Move all players accordingly
@@ -627,7 +627,7 @@ class PyRat ():
             If a fixed maze is provided, it is used.
             Otherwise, a random maze is created.
             In:
-                * self:        Reference to the current object.
+                * self: Reference to the current object.
             Out:
                 * maze:        Created maze as internal representation.
                 * maze_public: Created maze as a representation for the players.
@@ -666,7 +666,7 @@ class PyRat ():
         """
             Creates a maze from the provided fixed description.
             In:
-                * self:        Reference to the current object.
+                * self: Reference to the current object.
             Out:
                 * maze:        Created maze as internal representation.
                 * maze_width:  Width of the maze effectively created.
@@ -722,7 +722,7 @@ class PyRat ():
         """
             Creates a maze from the provided random description.
             In:
-                * self:        Reference to the current object.
+                * self: Reference to the current object.
             Out:
                 * maze:        Created maze as internal representation.
                 * maze_width:  Width of the maze effectively created.
@@ -786,7 +786,7 @@ class PyRat ():
             If a fixed list of cheese is provided, it is used.
             Otherwise, the cheese is distributed randomly.
             In:
-                * self:   Reference to the current object.
+                * self: Reference to the current object.
             Out:
                 * cheese: List of pieces of cheese.
         """
@@ -815,8 +815,8 @@ class PyRat ():
         """
             Distributes pieces of cheese in the maze, according to the provided list.
             In:
-                * self:   Reference to the current object.
-                * cells:  List of cells where cheese can be placed.
+                * self:  Reference to the current object.
+                * cells: List of cells where cheese can be placed.
             Out:
                 * cheese: List of pieces of cheese.
         """
@@ -844,8 +844,8 @@ class PyRat ():
         """
             Distributes pieces of cheese in the maze randomly.
             In:
-                * self:   Reference to the current object.
-                * cells:  List of cells where cheese can be placed.
+                * self:  Reference to the current object.
+                * cells: List of cells where cheese can be placed.
             Out:
                 * cheese: List of pieces of cheese.
         """
@@ -860,10 +860,10 @@ class PyRat ():
     def _register_player ( self:                    Self,
                            name:                    str,
                            turn_function:           Callable[[Union[numpy.ndarray, Dict[int, Dict[int, int]]], int, int, str, Dict[str, List[str]], Dict[str, int], Dict[str, float], Dict[str, Dict[str, Union[None, int]]], List[int], List[str], threading.local], str],
-                           preprocessing_function:  Union[None, Callable[[Union[numpy.ndarray, Dict[int, Dict[int, int]]], int, int, str, Dict[str, List[str]], Dict[str, int], List[int], List[str], threading.local], None]]                                                                            = None,
+                           preprocessing_function:  Union[None, Callable[[Union[numpy.ndarray, Dict[int, Dict[int, int]]], int, int, str, Dict[str, List[str]], Dict[str, int], List[int], List[str], threading.local], None]] = None,
                            postprocessing_function: Union[None, Callable[[Union[numpy.ndarray, Dict[int, Dict[int, int]]], int, int, str, Dict[str, List[str]], Dict[str, int], Dict[str, float], Dict[str, Dict[str, Union[None, int]]], List[int], List[str], threading.local, Dict[str, Any]], None]] = None,
-                           team:                    str                                                                                                                                                                                                                                                  = "",
-                           location:                str                                                                                                                                                                                                                                                  = "center"
+                           team:                    str = "",
+                           location:                str = "center"
                          ) ->                       None:
         
         """
@@ -936,8 +936,8 @@ class PyRat ():
                 * self: Reference to the current object.
                 * i:    Index of the cell.
             Out:
-                * row:  Row of the cell.
-                * col:  Column of the cell.
+                * row: Row of the cell.
+                * col: Column of the cell.
         """
         
         # Conversion
@@ -959,7 +959,7 @@ class PyRat ():
                 * row:  Row of the cell.
                 * col:  Column of the cell.
             Out:
-                * i:    Corresponding index in the adjacency matrix.
+                * i: Corresponding index in the adjacency matrix.
         """
         
         # Conversion

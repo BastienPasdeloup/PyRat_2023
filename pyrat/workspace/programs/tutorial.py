@@ -25,7 +25,7 @@ def get_vertices ( graph: Union[numpy.ndarray, Dict[int, Dict[int, int]]]
         Fuction to return the list of all vertices in a graph, except those with no neighbors.
         Here we propose an implementation for all types handled by the PyRat game.
         In:
-            * graph:    Graph on which to get the list of vertices.
+            * graph: Graph on which to get the list of vertices.
         Out:
             * vertices: List of vertices in the graph.
     """
@@ -57,8 +57,8 @@ def get_neighbors ( vertex: int,
         The function assumes that the vertex exists in the maze.
         It can be checked using for instance `assert vertex in get_vertices(graph)` but this takes time.
         In:
-            * vertex:    Vertex for which to compute the neighborhood.
-            * graph:     Graph on which to get the neighborhood of the vertex.
+            * vertex: Vertex for which to compute the neighborhood.
+            * graph:  Graph on which to get the neighborhood of the vertex.
         Out:
             * neighbors: List of vertices that are adjacent to the vertex in the graph.
     """
@@ -127,7 +127,7 @@ def locations_to_action ( source:     int,
             * target:     Vertex where the character wants to go.
             * maze_width: Width of the maze in number of cells.
         Out:
-            * action:     Name of the action to go from the source to the target.
+            * action: Name of the action to go from the source to the target.
     """
 
     # Convert indices in row, col pairs
@@ -248,7 +248,7 @@ def turn ( maze:             Union[numpy.ndarray, Dict[int, Dict[int, int]]],
             * possible_actions: List of possible actions.
             * memory:           Local memory to share information between preprocessing, turn and postprocessing.
         Out:
-            * action:           One of the possible actions, as given in possible_actions.
+            * action: One of the possible actions, as given in possible_actions.
     """
 
     # Let's return the action that does nothing for now

@@ -70,7 +70,7 @@ def run_one_game ( seed:      int,
             * program_1: First program to use in that game.
             * program_2: Second program to use in that game.
         Out:
-            * stats:     Statistics output at the end of the game.
+            * stats: Statistics output at the end of the game.
     """
 
     # Map the functions to the character

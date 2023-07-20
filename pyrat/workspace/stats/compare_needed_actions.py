@@ -75,7 +75,7 @@ def run_one_game ( seed:    int,
             * seed:    Random seed used to create the game.
             * program: Program to use in that game.
         Out:
-            * stats:   Statistics output at the end of the game.
+            * stats: Statistics output at the end of the game.
     """
     
     # Map the functions to the character

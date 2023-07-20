@@ -94,7 +94,7 @@ def turn ( maze:             Union[numpy.ndarray, Dict[int, Dict[int, int]]],
             * possible_actions: List of possible actions.
             * memory:           Local memory to share information between preprocessing, turn and postprocessing.
         Out:
-            * action:           One of the possible actions, as given in possible_actions.
+            * action: One of the possible actions, as given in possible_actions.
     """
 
     # Mark current cell as visited
