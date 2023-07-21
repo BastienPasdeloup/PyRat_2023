@@ -1310,13 +1310,13 @@ class PyRat ():
                         return ___load_player_surfaces("default", scale, border_color, border_width, add_border)
                 
                 # Function to play a sound
-                def ___play_sound (player_name, sound_name):
+                def ___play_sound (file_name, alternate_file_name=None):
                     try:
-                        sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "gui", "players", player_name, sound_name)
+                        sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_name)
                         playsound.playsound(sound_file, block=False)
                     except:
                         try:
-                            sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "gui", "players", "default", sound_name)
+                            sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), alternate_file_name)
                             playsound.playsound(sound_file, block=False)
                         except:
                             pass
@@ -1708,7 +1708,7 @@ class PyRat ():
                         # Play a sound is a cheese is eaten
                         for player in current_player_locations:
                             if new_player_locations[player] in current_cheese and mud_being_crossed[player] == 0:
-                                ___play_sound(player, "cheese_eaten.wav")
+                                ___play_sound(os.path.join("gui", "players", player, "cheese_eaten.wav"), os.path.join("gui", "players", "default", "cheese_eaten.wav"))
                         
                         # Update score
                         ___show_avatars()
@@ -1718,12 +1718,13 @@ class PyRat ():
                         # Indicate if the game is over
                         if done:
                             sorted_results = sorted([(team_scores[team], team) for team in team_scores], reverse=True)
-                            medals = [___surface_from_image(os.path.join("gui", "medals", medal_name), medal_size) for medal_name in ["first.png", "second.png", "third.png", "others.png"]]
+                            medals = [___surface_from_image(os.path.join("gui", "endgame", medal_name), medal_size) for medal_name in ["first.png", "second.png", "third.png", "others.png"]]
                             for i in range(len(sorted_results)):
                                 if i > 0 and sorted_results[i][0] != sorted_results[i-1][0] and len(medals) > 1:
                                     del medals[0]
                                 team = sorted_results[i][1]
                                 self.gui_screen.blit(medals[0], (medal_locations[team][0] - medals[0].get_width() / 2, medal_locations[team][1] - medals[0].get_height() / 2))
+                            ___play_sound(os.path.join("gui", "endgame", "game_over.wav"))
                         pygame.display.update((0, 0, maze_x_offset, window_height))
                         
                     # Ignore exceptions raised due to emtpy queue
