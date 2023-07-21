@@ -236,7 +236,8 @@ class PyRat ():
         """
 
         # Copy the template workspace into the current directory if not already exixting
-        shutil.copytree(os.path.join(os.path.dirname(os.path.realpath(__file__)), "workspace"), "pyrat_workspace")
+        source_workspace = os.path.join(os.path.dirname(os.path.realpath(__file__)), "workspace")
+        shutil.copytree(source_workspace, "pyrat_workspace", ignore=shutil.ignore_patterns('__pycache__'))
     
     #############################################################################################################################################
     #                                                               PUBLIC METHODS                                                              #
