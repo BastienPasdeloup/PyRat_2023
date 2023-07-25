@@ -73,7 +73,7 @@ def turn ( maze:             Union[numpy.ndarray, Dict[int, Dict[int, int]]],
 if __name__ == "__main__":
 
     # Map the function to the character
-    players = [{"name": "rat", "turn_function": turn}]
+    players = [{"name": "Random 2", "skin": "python", "turn_function": turn}]
 
     # Customize the game elements
     config = {"maze_width": 15,

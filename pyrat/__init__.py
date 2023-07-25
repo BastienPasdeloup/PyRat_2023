@@ -48,30 +48,30 @@ parser = argparse.ArgumentParser()
 list_type = lambda x: ast.literal_eval(x) if isinstance(ast.literal_eval(x), list) else exec("raise argparse.ArgumentTypeError(\"Should be a valid interval [2, ...]\")")
 
 # Arguments
-parser.add_argument("--random_seed",         type=int,                                                   default=None,     help="Global random seed for all elements")
-parser.add_argument("--random_seed_maze",    type=int,                                                   default=None,     help="Random seed for the maze generation")
-parser.add_argument("--random_seed_cheese",  type=int,                                                   default=None,     help="Random seed for the pieces of cheese distribution")
-parser.add_argument("--random_seed_players", type=int,                                                   default=None,     help="Random seed for the initial location of players")
-parser.add_argument("--maze_width",          type=int,                                                   default=15,       help="Width of the maze in number of cells")
-parser.add_argument("--maze_height",         type=int,                                                   default=13,       help="Height of the maze in number of cells")
-parser.add_argument("--cell_percentage",     type=float,                                                 default=80.0,     help="Percentage of cells that can be accessed in the maze, 0%% being a useless maze, and 100%% being a full rectangular maze")
-parser.add_argument("--wall_percentage",     type=float,                                                 default=60.0,     help="Percentage of walls in the maze, 0%% being an empty maze, and 100%% being the maximum number of walls that keep the maze connected")
-parser.add_argument("--mud_percentage",      type=float,                                                 default=20.0,     help="Percentage of pairs of adjacent cells that are separated by mud in the maze")
-parser.add_argument("--mud_range",           type=list_type,                                             default=[4, 9],   help="Interval of turns needed to cross mud")
-parser.add_argument("--maze_representation", type=str, choices=["dictionary", "matrix"],                 default="matrix", help="Representation of the maze in memory as given to players")
-parser.add_argument("--fixed_maze",          type=str,                                                   default=None,     help="Fixed maze in any PyRat accepted representation (takes priority over any maze description and will automatically set maze_height and maze_width)")
-parser.add_argument("--nb_cheese",           type=int,                                                   default=21,       help="Number of pieces of cheese in the maze")
-parser.add_argument("--fixed_cheese",        type=str,                                                   default=None,     help="Fixed list of cheese (takes priority over random number of cheese)")
-parser.add_argument("--save_path",           type=str,                                                   default=".",      help="Path where games are saved")
-parser.add_argument("--save_game",           action="store_true",                                        default=False,    help="Indicates if the game should be saved")
-parser.add_argument("--preprocessing_time",  type=float,                                                 default=3.0,      help="Time given to the players before the game starts")
-parser.add_argument("--turn_time",           type=float,                                                 default=0.1,      help="Time after which players will miss a turn")
-parser.add_argument("--synchronous",         action="store_true",                                        default=False,    help="If set, waits for all players to return an action before moving, even if turn_time is exceeded",)
-parser.add_argument("--continue_on_error",   action="store_true",                                        default=False,    help="If a player crashes, continues the game anyway")
-parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",    help="Method to display the game, or no_rendering to play without rendering")
-parser.add_argument("--render_simplified",   action="store_true",                                        default=False,    help="If the maze is rendered, hides some elements that are not essential")
-parser.add_argument("--fullscreen",          action="store_true",                                        default=False,    help="Renders the game in fullscreen mode (GUI rendering only)")
-parser.add_argument("--trace_length",        type=int,                                                   default=0,        help="Maximum length of the trace to display when players are moving (GUI rendering only)")
+parser.add_argument("--random_seed",         type=int,                                                   default=None,         help="Global random seed for all elements")
+parser.add_argument("--random_seed_maze",    type=int,                                                   default=None,         help="Random seed for the maze generation")
+parser.add_argument("--random_seed_cheese",  type=int,                                                   default=None,         help="Random seed for the pieces of cheese distribution")
+parser.add_argument("--random_seed_players", type=int,                                                   default=None,         help="Random seed for the initial location of players")
+parser.add_argument("--maze_width",          type=int,                                                   default=15,           help="Width of the maze in number of cells")
+parser.add_argument("--maze_height",         type=int,                                                   default=13,           help="Height of the maze in number of cells")
+parser.add_argument("--cell_percentage",     type=float,                                                 default=80.0,         help="Percentage of cells that can be accessed in the maze, 0%% being a useless maze, and 100%% being a full rectangular maze")
+parser.add_argument("--wall_percentage",     type=float,                                                 default=60.0,         help="Percentage of walls in the maze, 0%% being an empty maze, and 100%% being the maximum number of walls that keep the maze connected")
+parser.add_argument("--mud_percentage",      type=float,                                                 default=20.0,         help="Percentage of pairs of adjacent cells that are separated by mud in the maze")
+parser.add_argument("--mud_range",           type=list_type,                                             default=[4, 9],       help="Interval of turns needed to cross mud")
+parser.add_argument("--maze_representation", type=str, choices=["dictionary", "matrix"],                 default="dictionary", help="Representation of the maze in memory as given to players")
+parser.add_argument("--fixed_maze",          type=str,                                                   default=None,         help="Fixed maze in any PyRat accepted representation (takes priority over any maze description and will automatically set maze_height and maze_width)")
+parser.add_argument("--nb_cheese",           type=int,                                                   default=21,           help="Number of pieces of cheese in the maze")
+parser.add_argument("--fixed_cheese",        type=str,                                                   default=None,         help="Fixed list of cheese (takes priority over random number of cheese)")
+parser.add_argument("--save_path",           type=str,                                                   default=".",          help="Path where games are saved")
+parser.add_argument("--save_game",           action="store_true",                                        default=False,        help="Indicates if the game should be saved")
+parser.add_argument("--preprocessing_time",  type=float,                                                 default=3.0,          help="Time given to the players before the game starts")
+parser.add_argument("--turn_time",           type=float,                                                 default=0.1,          help="Time after which players will miss a turn")
+parser.add_argument("--synchronous",         action="store_true",                                        default=False,        help="If set, waits for all players to return an action before moving, even if turn_time is exceeded",)
+parser.add_argument("--continue_on_error",   action="store_true",                                        default=False,        help="If a player crashes, continues the game anyway")
+parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",        help="Method to display the game, or no_rendering to play without rendering")
+parser.add_argument("--render_simplified",   action="store_true",                                        default=False,        help="If the maze is rendered, hides some elements that are not essential")
+parser.add_argument("--fullscreen",          action="store_true",                                        default=False,        help="Renders the game in fullscreen mode (GUI rendering only)")
+parser.add_argument("--trace_length",        type=int,                                                   default=0,            help="Maximum length of the trace to display when players are moving (GUI rendering only)")
 
 # Parse the arguments into a global variable
 args = parser.parse_args()
@@ -200,6 +200,7 @@ class PyRat ():
         self.player_functions = {}
         self.player_locations = {}
         self.player_initial_locations = {}
+        self.player_skins = {}
         self.player_scores = {}
         self.player_muds = {}
         self.player_traces = {}
@@ -498,7 +499,7 @@ class PyRat ():
             with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "save_template.py"), "r") as save_template_file:
                 save_template = save_template_file.read()
                 save_template = save_template.replace("{ACTIONS}", str(self.actions_history).replace("], '", "],\n                      '"))
-                save_template = save_template.replace("{PLAYERS}", str([{"\"name\": \"%s\", \"team\": \"%s\", \"turn_function\": turn, \"location\": %d" % (player, [team for team in self.teams if player in self.teams[team]][0], self.player_initial_locations[player])} for player in self.player_locations]).replace("'", "").replace("},", "},\n              "))
+                save_template = save_template.replace("{PLAYERS}", str([{"\"name\": \"%s\", \"team\": \"%s\", \"skin\": \"%s\", \"turn_function\": turn, \"location\": %d" % (player, [team for team in self.teams if player in self.teams[team]][0], self.player_skins[player], self.player_initial_locations[player])} for player in self.player_locations]).replace("'", "").replace("},", "},\n              "))
                 save_template = save_template.replace("{CONFIG}", str(config).replace(", '", ",\n              '"))
                 with open(output_file_name, "w") as output_file:
                     print(save_template, file=output_file)
@@ -863,6 +864,7 @@ class PyRat ():
                            turn_function:           Callable[[Union[numpy.ndarray, Dict[int, Dict[int, int]]], int, int, str, Dict[str, List[str]], Dict[str, int], Dict[str, float], Dict[str, Dict[str, Union[None, int]]], List[int], List[str], threading.local], str],
                            preprocessing_function:  Union[None, Callable[[Union[numpy.ndarray, Dict[int, Dict[int, int]]], int, int, str, Dict[str, List[str]], Dict[str, int], List[int], List[str], threading.local], None]] = None,
                            postprocessing_function: Union[None, Callable[[Union[numpy.ndarray, Dict[int, Dict[int, int]]], int, int, str, Dict[str, List[str]], Dict[str, int], Dict[str, float], Dict[str, Dict[str, Union[None, int]]], List[int], List[str], threading.local, Dict[str, Any]], None]] = None,
+                           skin:                    str = "default",
                            team:                    str = "",
                            location:                str = "center"
                          ) ->                       None:
@@ -875,6 +877,7 @@ class PyRat ():
                 * preprocessing_function:  Preprocessing function used by the player at the beginning of the game (optional).
                 * postprocessing_function: Function called at the end of the game (optional).
                 * team:                    Team of the player.
+                * skin:                    Skin of the player (rad, python, default, or an existing directory).
                 * location:                Controls initial location of the player (random, same, center, or a fixed index).
             Out:
                 * None.
@@ -882,10 +885,6 @@ class PyRat ():
 
         # Set random seed
         nprandom.seed(self.random_seed_players + len(self.player_locations))
-        
-        # Make sure these are strings
-        name = str(name)
-        team = str(team)
         
         # Check if the name is unique
         if name in self.player_locations:
@@ -917,6 +916,7 @@ class PyRat ():
         
         # Initialize other elements
         self.player_scores[name] = 0
+        self.player_skins[name] = skin
         self.player_muds[name] = {"target": None, "count": 0}
         self.player_traces[name] = []
         self.player_functions[name] = {"preprocessing": preprocessing_function, "postprocessing": postprocessing_function, "turn": turn_function}
@@ -1217,8 +1217,18 @@ class PyRat ():
                 avatars_area_height = min(game_area_height // 2, (game_area_height - (len(self.teams) - 1) * maze_y_offset) // len(self.teams))
                 avatars_area_border = 2
                 avatars_area_angle = 10
-                avatars_area_padding = avatars_area_height // 13
-                team_text_size = avatars_area_padding * 3
+                avatars_area_color = (255, 255, 255)
+                teams_enabled = len(self.teams) > 1 or len(list(self.teams.keys())[0]) > 0
+                if teams_enabled:
+                    avatars_area_padding = avatars_area_height // 13
+                    team_text_size = avatars_area_padding * 3
+                    colors = distinctipy.distinctipy.get_colors(len(self.teams))
+                    team_colors = {list(self.teams.keys())[i]: tuple([int(c * 255) for c in colors[i]]) for i in range(len(self.teams))}
+                else:
+                    avatars_area_padding = avatars_area_height // 12
+                    team_text_size = 0
+                    avatars_area_height -= avatars_area_padding * 3
+                    team_colors = {list(self.teams.keys())[i]: avatars_area_color for i in range(len(self.teams))}
                 player_avatar_size = avatars_area_padding * 3
                 player_avatar_horizontal_padding = avatars_area_padding * 4
                 player_name_text_size = avatars_area_padding
@@ -1231,7 +1241,6 @@ class PyRat ():
                 player_border_width = 2
                 cheese_border_color = (255, 255, 0)
                 cheese_border_width = 1
-                avatars_area_color = (255, 255, 255)
                 cheese_score_border_color = (100, 100, 100)
                 cheese_score_border_width = 1
                 trace_size = wall_size // 2
@@ -1292,13 +1301,13 @@ class PyRat ():
                     return final_surface
 
                 # Function to load the surfaces of a player
-                def ___load_player_surfaces (player_name, scale, border_color=None, border_width=None, add_border=not self.render_simplified):
+                def ___load_player_surfaces (player_skin, scale, border_color=None, border_width=None, add_border=teams_enabled):
                     try:
-                        player_neutral = ___surface_from_image(os.path.join("gui", "players", player_name, "neutral.png"), scale)
-                        player_north = ___surface_from_image(os.path.join("gui", "players", player_name, "north.png"), scale)
-                        player_south = ___surface_from_image(os.path.join("gui", "players", player_name, "south.png"), scale)
-                        player_west = ___surface_from_image(os.path.join("gui", "players", player_name, "west.png"), scale)
-                        player_east = ___surface_from_image(os.path.join("gui", "players", player_name, "east.png"), scale)
+                        player_neutral = ___surface_from_image(os.path.join("gui", "players", player_skin, "neutral.png"), scale)
+                        player_north = ___surface_from_image(os.path.join("gui", "players", player_skin, "north.png"), scale)
+                        player_south = ___surface_from_image(os.path.join("gui", "players", player_skin, "south.png"), scale)
+                        player_west = ___surface_from_image(os.path.join("gui", "players", player_skin, "west.png"), scale)
+                        player_east = ___surface_from_image(os.path.join("gui", "players", player_skin, "east.png"), scale)
                         if add_border:
                             player_neutral = ___add_color_border(player_neutral, border_color, border_width)
                             player_north = ___add_color_border(player_north, border_color, border_width)
@@ -1322,9 +1331,9 @@ class PyRat ():
                             pass
                 
                 # Function to load the avatar of a player
-                def ___load_player_avatar (player_name, scale):
+                def ___load_player_avatar (player_skin, scale):
                     try:
-                        return ___surface_from_image(os.path.join("gui", "players", player_name, "avatar.png"), scale)
+                        return ___surface_from_image(os.path.join("gui", "players", player_skin, "avatar.png"), scale)
                     except:
                         return ___load_player_avatar("default", scale)
                 
@@ -1338,10 +1347,6 @@ class PyRat ():
                     if main_color == (0, 0, 0, 0):
                         main_color = surface.unmap_rgb(max_occurrences[1])
                     return main_color
-
-                # Create colors for the teams
-                colors = distinctipy.distinctipy.get_colors(len(self.teams))
-                team_colors = {list(self.teams.keys())[i]: tuple([int(c * 255) for c in colors[i]]) for i in range(len(self.teams))}
 
                 # Set window icon
                 icon = ___surface_from_image(os.path.join("gui", "drawings", "pyrat.png"), icon_size)
@@ -1477,7 +1482,7 @@ class PyRat ():
                 # Add players
                 for player_name in self.player_locations:
                     team = [team for team in self.teams if player_name in self.teams[team]][0]
-                    player_neutral, player_north, player_south, player_west, player_east = ___load_player_surfaces(player_name, player_size, team_colors[team], player_border_width)
+                    player_neutral, player_north, player_south, player_west, player_east = ___load_player_surfaces(self.player_skins[player_name], player_size, team_colors[team], player_border_width)
                     row, col = self._i_to_rc(self.player_locations[player_name])
                     player_x = maze_x_offset + col * cell_size + (cell_size - player_neutral.get_width()) // 2
                     player_y = maze_y_offset + row * cell_size + (cell_size - player_neutral.get_height()) // 2
@@ -1490,29 +1495,30 @@ class PyRat ():
                 
                     # Box
                     team = list(self.teams.keys())[i]
-                    avatars_area_color_box = team_colors[team] if not self.render_simplified else avatars_area_color
                     team_background = pygame.Surface((avatars_area_width, avatars_area_height))
                     pygame.draw.rect(team_background, background_color, pygame.Rect(0, 0, avatars_area_width, avatars_area_height))
-                    pygame.draw.rect(team_background, avatars_area_color_box, pygame.Rect(0, 0, avatars_area_width, avatars_area_height), avatars_area_border, avatars_area_angle)
+                    pygame.draw.rect(team_background, team_colors[team], pygame.Rect(0, 0, avatars_area_width, avatars_area_height), avatars_area_border, avatars_area_angle)
                     team_background_x = avatars_x_offset
                     team_background_y = (1 + i) * maze_y_offset + i * avatars_area_height if len(self.teams) > 1 else (window_height - avatars_area_height) // 2
                     avatar_elements.append((team_background_x, team_background_y, team_background))
                     medal_locations[team] = (team_background_x + avatars_area_width, team_background_y)
                     
                     # Team name
-                    team_text = ___surface_from_text(team, team_text_size, avatars_area_color)
+                    team_text = ___surface_from_text(team, team_text_size, team_colors[team])
                     if team_text.get_width() > avatars_area_width - 2 * avatars_area_padding:
                         ratio = (avatars_area_width - 2 * avatars_area_padding) / team_text.get_width()
                         team_text = pygame.transform.scale(team_text, (int(team_text.get_width() * ratio), int(team_text.get_height() * ratio)))
                     team_text_x = avatars_x_offset + (avatars_area_width - team_text.get_width()) // 2
                     team_text_y = team_background_y + avatars_area_padding + (team_text_size - team_text.get_height()) // 2
+                    if not teams_enabled:
+                        team_text_size = -avatars_area_padding
                     avatar_elements.append((team_text_x, team_text_y, team_text))
                     
                     # Players images
                     players = []
                     for j in range(len(self.teams[team])):
                         player_name = self.teams[team][j]
-                        player_avatar = ___load_player_avatar(player_name, player_avatar_size)
+                        player_avatar = ___load_player_avatar(self.player_skins[player_name], player_avatar_size)
                         players.append((player_name, player_avatar))
                     avatar_area = pygame.Surface((2 * avatars_area_padding + sum([player[1].get_width() for player in players]) + player_avatar_horizontal_padding * (len(players) - 1), player_avatar_size))
                     pygame.draw.rect(avatar_area, background_color, pygame.Rect(0, 0, avatar_area.get_width(), avatar_area.get_height()))
@@ -1708,7 +1714,7 @@ class PyRat ():
                         # Play a sound is a cheese is eaten
                         for player in current_player_locations:
                             if new_player_locations[player] in current_cheese and mud_being_crossed[player] == 0:
-                                ___play_sound(os.path.join("gui", "players", player, "cheese_eaten.wav"), os.path.join("gui", "players", "default", "cheese_eaten.wav"))
+                                ___play_sound(os.path.join("gui", "players", self.player_skins[player], "cheese_eaten.wav"), os.path.join("gui", "players", "default", "cheese_eaten.wav"))
                         
                         # Update score
                         ___show_avatars()

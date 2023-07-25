@@ -163,7 +163,7 @@ def postprocessing ( maze:             Union[numpy.ndarray, Dict[int, Dict[int, 
 if __name__ == "__main__":
 
     # Map the functions to the character
-    players = [{"name": "rat", "preprocessing_function": preprocessing, "turn_function": turn, "postprocessing_function": postprocessing}]
+    players = [{"name": "Template", "preprocessing_function": preprocessing, "turn_function": turn, "postprocessing_function": postprocessing}]
 
     # Customize the game elements
     config = {"maze_width": 15,

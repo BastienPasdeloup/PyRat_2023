@@ -79,7 +79,7 @@ def run_one_game ( seed:    int,
     """
     
     # Map the functions to the character
-    players = [{"name": "rat", "preprocessing_function": program.preprocessing if "preprocessing" in dir(program) else None, "turn_function": program.turn}]
+    players = [{"name": program.__name__, "preprocessing_function": program.preprocessing if "preprocessing" in dir(program) else None, "turn_function": program.turn}]
 
     # Customize the game elements
     config = {"maze_width": MAZE_WIDTH,
@@ -113,8 +113,8 @@ if __name__ == "__main__":
             # Here we are interested in the number of turns needed to complete the game, as well as the time it takes 
             stats = run_one_game(seed, program)
             results[program.__name__]["turns"].append(stats["turns"])
-            results[program.__name__]["preprocessing_duration"].append(stats["players"]["rat"]["preprocessing_duration"])
-            results[program.__name__]["turn_durations"] += stats["players"]["rat"]["turn_durations"]
+            results[program.__name__]["preprocessing_duration"].append(stats["players"][program.__name__]["preprocessing_duration"])
+            results[program.__name__]["turn_durations"] += stats["players"][program.__name__]["turn_durations"]
 
     # Show results briefly
     print("#" * 20)

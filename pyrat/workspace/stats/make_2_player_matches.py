@@ -74,8 +74,8 @@ def run_one_game ( seed:      int,
     """
 
     # Map the functions to the character
-    players = [{"name": "rat", "team": "1", "preprocessing_function": program_1.preprocessing if "preprocessing" in dir(program_1) else None, "turn_function": program_1.turn},
-               {"name": "python", "team": "2", "preprocessing_function": program_2.preprocessing if "preprocessing" in dir(program_2) else None, "turn_function": program_2.turn}]
+    players = [{"name": program_1.__name__, "team": "1", "preprocessing_function": program_1.preprocessing if "preprocessing" in dir(program_1) else None, "turn_function": program_1.turn},
+               {"name": program_2.__name__, "team": "2", "preprocessing_function": program_2.preprocessing if "preprocessing" in dir(program_2) else None, "turn_function": program_2.turn}]
 
     # Customize the game elements
     config = {"maze_width": MAZE_WIDTH,
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         
         # Store score difference as result
         stats = run_one_game(seed, program_1, program_2)
-        results.append(int(stats["players"]["rat"]["score"] - stats["players"]["python"]["score"]))
+        results.append(int(stats["players"][program_1.__name__]["score"] - stats["players"][program_2.__name__]["score"]))
         
     # Show results briefly
     print("#" * 20)
