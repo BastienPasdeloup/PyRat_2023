@@ -1624,8 +1624,10 @@ class PyRat ():
                 player_surfaces = {player: player_elements[player][2] for player in self.player_locations}
 
                 # Show and indicate when ready
-                pygame.display.flip()
                 self.gui_running = True
+                pygame.display.flip()
+                time.sleep(0.1)
+                pygame.display.update()
                 gui_initialized_synchronizer.wait()
 
                 # Run until the user asks to quit
@@ -1729,7 +1731,7 @@ class PyRat ():
                                 if i > 0 and sorted_results[i][0] != sorted_results[i-1][0] and len(medals) > 1:
                                     del medals[0]
                                 team = sorted_results[i][1]
-                                self.gui_screen.blit(medals[0], (medal_locations[team][0] - medals[0].get_width() / 2, medal_locations[team][1] - medals[0].get_height() / 2))
+                                self.gui_screen.blit(medals[0], (medal_locations[team][0] - medals[0].get_width() / 2, medal_locations[team][1] - medals[0].get_height() / 3))
                             ___play_sound(os.path.join("gui", "endgame", "game_over.wav"))
                         pygame.display.update((0, 0, maze_x_offset, window_height))
                         
