@@ -22,6 +22,7 @@ import colored
 import scipy.sparse as sparse
 import scipy.sparse.csgraph as csgraph
 import threading
+import multiprocessing
 import queue
 import time
 import traceback
@@ -210,15 +211,17 @@ class PyRat ():
         self.gui_screen = None
         self.gui_running = None
 
-        # Initialize the maze
+        # Initialize game elements
         self.maze, self.maze_public, self.maze_width, self.maze_height = self._create_maze()
-
-        # Register players
         for player in players:
             self._register_player(**player)
-    
-        # Add the cheese
         self.cheese = self._distribute_cheese()
+
+        # Windows and OSX do not handle multiprocessing correctly (spawn instead of fork, and constraints that pygame should be in the main thread)
+        # On these platforms, we work with threads instead
+        # However this does not guarantee resource equity between players as threads are single-core
+        # We still use processes on Linux to make sure there is equity during the final tournament
+        self.use_multiprocessing = sys.platform.startswith("linux")
 
     #############################################################################################################################################
     #                                                               STATIC METHODS                                                              #
@@ -335,24 +338,22 @@ class PyRat ():
                 stats["players"][player] = {"actions": {"mud": 0, "error": 0, "miss": 0, "nothing": 0, "north": 0, "east": 0, "south": 0, "west": 0, "wall": 0}, "score": 0, "turn_durations": [], "preprocessing_duration": None}
             
             # Create a thread per player
-            turn_start_synchronizer = threading.Barrier(len(self.player_locations) + 1)
-            turn_timeout_lock = threading.Lock()
+            turn_start_synchronizer = self._new_barrier(len(self.player_locations) + 1)
+            turn_timeout_lock = self._new_lock()
             player_threads = {}
             player_fixed_data = {}
             for player in self.player_locations:
                 player_fixed_data[player] = [self.maze_public.copy(), self.maze_width, self.maze_height, self.teams.copy(), possible_actions.copy()]
-                player_threads[player] = {"thread": None, "input_queue": queue.Queue(), "output_queue": queue.Queue(), "turn_end_synchronizer": threading.Barrier(2)}
-                player_threads[player]["thread"] = threading.Thread(target=_player_thread_function, args=(player, player_threads[player]["input_queue"], player_threads[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_threads[player]["turn_end_synchronizer"],))
-                player_threads[player]["thread"].daemon = True
+                player_threads[player] = {"thread": None, "input_queue": self._new_queue(), "output_queue": self._new_queue(), "turn_end_synchronizer": self._new_barrier(2)}
+                player_threads[player]["thread"] = self._new_parallel(target=_player_thread_function, args=(player, player_threads[player]["input_queue"], player_threads[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_threads[player]["turn_end_synchronizer"],))
                 player_threads[player]["thread"].start()
 
             # If playing asynchrounously, we create threads to wait instead of missing players
             if not self.synchronous:
                 waiter_threads = {}
                 for player in player_threads:
-                    waiter_threads[player] = {"thread": None, "input_queue": queue.Queue()}
-                    waiter_threads[player]["thread"] = threading.Thread(target=_waiter_thread_function, args=(waiter_threads[player]["input_queue"], turn_start_synchronizer,))
-                    waiter_threads[player]["thread"].daemon = True
+                    waiter_threads[player] = {"thread": None, "input_queue": self._new_queue()}
+                    waiter_threads[player]["thread"] = self._new_parallel(target=_waiter_thread_function, args=(waiter_threads[player]["input_queue"], turn_start_synchronizer,))
                     waiter_threads[player]["thread"].start()
 
             # We play until the game is over
@@ -452,6 +453,88 @@ class PyRat ():
         # Clean before returning
         self._close()
         return stats
+
+    #############################################################################################################################################
+    #                                                              PRIVATE METHODS                                                              #
+    #                                                             (SYNCHRONIZATION)                                                             #
+    #############################################################################################################################################
+
+    def _new_barrier ( self: Self,
+                       n:    int
+                     ) ->    Union[threading.Barrier, multiprocessing.Barrier]:
+
+        """
+            Creates a new barrier.
+            This should make the use of threading or multiprocessing transparent.
+            In:
+                * self: Reference to the current object.
+            Out:
+                * new_barrier: New barrier.
+        """
+
+        # Create a barrier
+        new_barrier = multiprocessing.Manager().Barrier(n) if self.use_multiprocessing else threading.Barrier(n)
+        return new_barrier
+
+    #############################################################################################################################################
+    
+    def _new_lock ( self: Self
+                  ) ->    Union[threading.Lock, multiprocessing.Lock]:
+
+        """
+            Creates a new lock.
+            This should make the use of threading or multiprocessing transparent.
+            In:
+                * self: Reference to the current object.
+            Out:
+                * new_lock: New lock.
+        """
+
+        # Create a lock
+        new_lock = multiprocessing.Manager().Lock() if self.use_multiprocessing else threading.Lock()
+        return new_lock
+
+    #############################################################################################################################################
+    
+    def _new_parallel ( self:     Self,
+                        *args:    Any,
+                        **kwargs: Any
+                      ) ->        Union[threading.Thread, multiprocessing.Process]:
+
+        """
+            Creates a new thread or process.
+            This should make the use of threading or multiprocessing transparent.
+            In:
+                * self: Reference to the current object.
+            Out:
+                * new_parallel: New thread or process.
+        """
+
+        # Create a parallel execution
+        if self.use_multiprocessing:
+            new_parallel = multiprocessing.Process(*args, **kwargs)
+        else:
+            new_parallel = threading.Thread(*args, **kwargs)
+            new_parallel.daemon = True
+        return new_parallel
+
+    #############################################################################################################################################
+    
+    def _new_queue ( self: Self
+                   ) ->    Union[queue.Queue, multiprocessing.Queue]:
+
+        """
+            Creates a new queue.
+            This should make the use of threading or multiprocessing transparent.
+            In:
+                * self: Reference to the current object.
+            Out:
+                * new_queue: New queue.
+        """
+
+        # Create a queue
+        new_queue = multiprocessing.Manager().Queue() if self.use_multiprocessing else queue.Queue()
+        return new_queue
 
     #############################################################################################################################################
     #                                                              PRIVATE METHODS                                                              #
@@ -1060,7 +1143,7 @@ class PyRat ():
             return len(re.sub(r"[\u001B\u009B][\[\]()#;?]*((([a-zA-Z\d]*(;[-a-zA-Z\d\/#&.:=?%@~_]*)*)?\u0007)|((\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]))", "", text))
 
         # Function to compute the difference between two cells for each dimension.
-        def __coords_difference (self, i1, i2):
+        def __coords_difference (i1, i2):
             row1, col1 = self._i_to_rc(i1)
             row2, col2 = self._i_to_rc(i2)
             row_diff = row1 - row2
@@ -1082,7 +1165,7 @@ class PyRat ():
         
         # Player/team elements
         teams = {team: __colorize(team, colored.fg(9 + list(self.teams.keys()).index(team))) for team in self.teams}
-        mud_indicator = lambda player: " (" + ("⬇" if self.__coords_difference(self.player_muds[player]["target"], self.player_locations[player]) == (1, 0) else "⬆" if self.__coords_difference(self.player_muds[player]["target"], self.player_locations[player]) == (-1, 0) else "➡" if self.__coords_difference(self.player_muds[player]["target"], self.player_locations[player]) == (0, 1) else "⬅") + " " + str(self.player_muds[player]["count"]) + ")" if self.player_muds[player]["count"] > 0 else ""
+        mud_indicator = lambda player: " (" + ("⬇" if __coords_difference(self.player_muds[player]["target"], self.player_locations[player]) == (1, 0) else "⬆" if __coords_difference(self.player_muds[player]["target"], self.player_locations[player]) == (-1, 0) else "➡" if __coords_difference(self.player_muds[player]["target"], self.player_locations[player]) == (0, 1) else "⬅") + " " + str(self.player_muds[player]["count"]) + ")" if self.player_muds[player]["count"] > 0 else ""
         players = {player: __colorize(player + mud_indicator(player), colored.bg("grey_23") + colored.fg(9 + ["team" if player in team else 0 for team in self.teams.values()].index("team"))) for player in self.player_locations}
         
         # Game info
@@ -1186,9 +1269,18 @@ class PyRat ():
         """
 
         # Define a function to run the GUI in a separate thread
-        def __gui_thread_function (gui_initialized_synchronizer):
+        def __gui_thread_function (gui_initialized_synchronizer, gui_queue):
             try:
                 
+                # In multiprocessing, we initialize pygame in its own process
+                if self.use_multiprocessing:
+                    pygame.init()
+                    if self.fullscreen:
+                        self.gui_screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
+                        pygame.display.toggle_fullscreen()
+                    else:
+                        self.gui_screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
+
                 # We will store elements to display
                 maze_elements = []
                 avatar_elements = []
@@ -1629,14 +1721,22 @@ class PyRat ():
                 time.sleep(0.1)
                 pygame.display.update()
                 gui_initialized_synchronizer.wait()
-
+                
                 # Run until the user asks to quit
                 while self.gui_running:
                     try:
 
+                        # In multiprocessing, we check for termination in the process
+                        if self.use_multiprocessing:
+                            for event in pygame.event.get():
+                                if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE):
+                                    self.gui_running = False
+                            if not self.gui_running:
+                                break
+                        
                         # Get turn info
-                        team_scores, new_player_locations, mud_values, new_cheese, done, turn = self.gui_thread_queue.get(False)
-
+                        team_scores, new_player_locations, mud_values, new_cheese, done, turn = gui_queue.get(False)
+                        
                         # Enter mud?
                         for player in current_player_locations:
                             if mud_values[player] > 0 and mud_being_crossed[player] == 0:
@@ -1747,16 +1847,20 @@ class PyRat ():
 
         # Initialize the GUI in a different thread at turn 0
         if turn == 0:
-            pygame.init()
-            if self.fullscreen:
-                self.gui_screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
-                pygame.display.toggle_fullscreen()
-            else:
-                self.gui_screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
-            gui_initialized_synchronizer = threading.Barrier(2)
-            self.gui_thread = threading.Thread(target=__gui_thread_function, args=(gui_initialized_synchronizer,))
-            self.gui_thread_queue = queue.Queue()
-            self.gui_thread.daemon = True
+
+            # In multithreading, PyGame should be initialized in the main thread
+            if not self.use_multiprocessing:
+                pygame.init()
+                if self.fullscreen:
+                    self.gui_screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
+                    pygame.display.toggle_fullscreen()
+                else:
+                    self.gui_screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
+
+            # Initialize the GUI thread
+            gui_initialized_synchronizer = self._new_barrier(2)
+            self.gui_thread_queue = self._new_queue()
+            self.gui_thread = self._new_parallel(target=__gui_thread_function, args=(gui_initialized_synchronizer, self.gui_thread_queue,))
             self.gui_thread.start()
             gui_initialized_synchronizer.wait()
         
@@ -1766,14 +1870,15 @@ class PyRat ():
             mud_values = {player: self.player_muds[player]["count"] for player in self.player_locations}
             self.gui_thread_queue.put((self._score_per_team(), new_player_locations, mud_values, self.cheese, done, turn))
         
-        # Stop when the window is closed or escape key is pressed
-        while self.gui_running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE):
-                    self.gui_running = False
-            if not done:
-                break
-            time.sleep(0.1)
+        # In multiprocessing, we check for termination in the main process
+        if not self.use_multiprocessing:
+            while self.gui_running:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE):
+                        self.gui_running = False
+                if not done:
+                    break
+                time.sleep(0.5)
         
 #####################################################################################################################################################
 #####################################################################################################################################################
