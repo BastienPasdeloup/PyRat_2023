@@ -36,6 +36,7 @@ import pygame
 import pygame.locals as pglocals
 import shutil
 import distinctipy
+import psutil
 import playsound
 from typing import *
 from typing_extensions import *
@@ -228,7 +229,7 @@ class PyRat ():
     #############################################################################################################################################
 
     @staticmethod
-    def setup_workspace () -> None :
+    def setup_workspace () -> None:
 
         """
             Creates all the directories for a clean student workspace.
@@ -261,6 +262,12 @@ class PyRat ():
         # Function to execute in a separate thread per player
         def _player_thread_function (player, input_queue, output_queue, turn_start_synchronizer, turn_timeout_lock, turn_end_synchronizer):
             try:
+            
+                # We will need the native id for threads equity
+                native_id = threading.get_native_id()
+                output_queue.put(native_id)
+            
+                # Main loop
                 memory = threading.local()
                 while True:
                     
@@ -283,7 +290,11 @@ class PyRat ():
                         
                         # Otherwise, we ask for an action
                         else:
-                            start = time.time()
+                        
+                            # Measure start time
+                            start = time.process_time() if self.use_multiprocessing else time.thread_time()
+                            
+                            # Go
                             if turn == 0:
                                 action = "preprocessing_error"
                                 if self.player_functions[player]["preprocessing"] is not None:
@@ -295,8 +306,11 @@ class PyRat ():
                                 if a not in possible_actions:
                                     raise Exception("Invalid action %s by player %s" % (str(a), player))
                                 action = a
-                            duration = time.time() - start
-                    
+                            
+                            # Set end time
+                            end_time = time.process_time() if self.use_multiprocessing else time.thread_time()
+                            duration = end_time - start
+                                
                     # Print error message in case of a crash
                     except:
                         print("Player %s has crashed with the following error:" % (player), file=sys.stderr)
@@ -342,11 +356,13 @@ class PyRat ():
             turn_timeout_lock = self._new_lock()
             player_threads = {}
             player_fixed_data = {}
+            player_thread_ids = {}
             for player in self.player_locations:
                 player_fixed_data[player] = [self.maze_public.copy(), self.maze_width, self.maze_height, self.teams.copy(), possible_actions.copy()]
                 player_threads[player] = {"thread": None, "input_queue": self._new_queue(), "output_queue": self._new_queue(), "turn_end_synchronizer": self._new_barrier(2)}
                 player_threads[player]["thread"] = self._new_parallel(target=_player_thread_function, args=(player, player_threads[player]["input_queue"], player_threads[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_threads[player]["turn_end_synchronizer"],))
                 player_threads[player]["thread"].start()
+                player_thread_ids[player] = player_threads[player]["output_queue"].get()
 
             # If playing asynchrounously, we create threads to wait instead of missing players
             if not self.synchronous:
@@ -356,21 +372,50 @@ class PyRat ():
                     waiter_threads[player]["thread"] = self._new_parallel(target=_waiter_thread_function, args=(waiter_threads[player]["input_queue"], turn_start_synchronizer,))
                     waiter_threads[player]["thread"].start()
 
+            # Returns the time elapsed by the player
+            def _player_time (player):
+                system_threads = psutil.Process().threads()
+                for t in system_threads:
+                    if t.id == player_thread_ids[player]:
+                        return t.user_time
+                return -1.0
+            
             # We play until the game is over
             players_ready = list(player_threads.keys())
             players_running = {player: True for player in player_threads}
             while any(players_running.values()):
 
+                # Mark the turn start for the players
+                # Useful to guarantee threads have at least the required time
+                if not self.use_multiprocessing:
+                    players_start_time = {}
+                    for player in player_thread_ids:
+                        players_start_time[player] = _player_time(player)
+
                 # We communicate the state of the game to the players not in mud
-                #player_locations, player_scores, player_muds, cheese = self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy() # TODO: copies?
                 for player in players_ready:
                     final_stats = stats.copy() if done else None
                     player_threads[player]["input_queue"].put((*player_fixed_data[player], self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats))
                 turn_start_synchronizer.wait()
-
-                # Wait some time
+                
+                # Check that a turn lasts al least the time it should for each player
+                # Useful to guarantee threads have at least the required time
                 sleep_time = self.preprocessing_time if turn == 0 else self.turn_time
-                time.sleep(sleep_time)
+                if self.use_multiprocessing:
+                    time.sleep(sleep_time)
+                else:
+                    start = time.time()
+                    while True:
+                        min_elapsed_time = float("inf")
+                        for player in player_thread_ids:
+                            player_elapsed_time = _player_time(player) - players_start_time[player]
+                            player_still_running = player_threads[player]["output_queue"].empty()
+                            if player_elapsed_time < 0.0 or not player_still_running:
+                                continue
+                            min_elapsed_time = min(min_elapsed_time, player_elapsed_time)
+                        if min_elapsed_time >= sleep_time and time.time() - start >= sleep_time:
+                            break
+                        time.sleep(sleep_time / 10.0)
 
                 # In synchronous mode, we wait for everyone
                 actions_as_text = {player: "postprocessing" for player in player_threads}
