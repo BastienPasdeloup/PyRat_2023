@@ -33,7 +33,7 @@ setuptools.setup \
     license =                       "MIT",
     packages =                      setuptools.find_packages(),
     include_package_data =          True,
-    install_requires =              ["pygame", "colored", "distinctipy", "playsound", "numpy", "scipy", "tqdm", "typing_extensions"],
+    install_requires =              ["pygame", "colored", "distinctipy", "playsound", "numpy", "scipy", "tqdm", "typing_extensions", "psutil"],
 )
 
 #####################################################################################################################################################
