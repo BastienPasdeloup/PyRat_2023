@@ -46,7 +46,7 @@ from typing_extensions import *
 #####################################################################################################################################################
 
 # Initialize parser
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 list_type = lambda x: ast.literal_eval(x) if isinstance(ast.literal_eval(x), list) else exec("raise argparse.ArgumentTypeError(\"Should be a valid interval [2, ...]\")")
 
 # Arguments
