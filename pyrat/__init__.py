@@ -834,6 +834,7 @@ class PyRat ():
                     break
             maze_height = int(numpy.ceil((max(fixed_maze) + 1) / maze_width))
         
+        # Error if type is unrecognized
         else:
             raise Exception("Unhandled type", type(fixed_maze), "when loading fixed maze, should be a matrix")
         
@@ -1392,7 +1393,11 @@ class PyRat ():
                 # Function to load an image with some scaling
                 # If only 2 arguments are provided, scales keeping ratio specifying the maximum size
                 # If first argument is a directory, returns a random image from it
+                already_loaded_images = {}
                 def ___surface_from_image (file_or_dir_name, target_width_or_max_size, target_height=None):
+                    loaded_image_key = str(file_or_dir_name) + "_" + str(target_width_or_max_size) + "_" + str(target_height)
+                    if loaded_image_key in already_loaded_images:
+                        return already_loaded_images[loaded_image_key]
                     full_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_or_dir_name)
                     if os.path.isdir(full_path):
                         full_path = nprandom.choice(glob.glob(os.path.join(full_path, "*")))
@@ -1402,6 +1407,7 @@ class PyRat ():
                         surface = pygame.transform.scale(surface, (surface.get_width() * target_width_or_max_size // max_surface_size, surface.get_height() * target_width_or_max_size // max_surface_size))
                     else:
                         surface = pygame.transform.scale(surface, (target_width_or_max_size, target_height))
+                    already_loaded_images[loaded_image_key] = surface
                     return surface
                 
                 # Same function for text
