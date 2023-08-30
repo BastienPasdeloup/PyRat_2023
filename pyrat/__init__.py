@@ -1395,12 +1395,12 @@ class PyRat ():
                 # If first argument is a directory, returns a random image from it
                 already_loaded_images = {}
                 def ___surface_from_image (file_or_dir_name, target_width_or_max_size, target_height=None):
-                    loaded_image_key = str(file_or_dir_name) + "_" + str(target_width_or_max_size) + "_" + str(target_height)
-                    if loaded_image_key in already_loaded_images:
-                        return already_loaded_images[loaded_image_key]
                     full_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_or_dir_name)
                     if os.path.isdir(full_path):
                         full_path = nprandom.choice(glob.glob(os.path.join(full_path, "*")))
+                    loaded_image_key = str(full_path) + "_" + str(target_width_or_max_size) + "_" + str(target_height)
+                    if loaded_image_key in already_loaded_images:
+                        return already_loaded_images[loaded_image_key]
                     surface = pygame.image.load(full_path).convert_alpha()
                     if target_height is None:
                         max_surface_size = max(surface.get_width(), surface.get_height())
@@ -1892,7 +1892,8 @@ class PyRat ():
                         pass
                     
                 # Quit PyGame
-                pygame.quit()
+                if self.use_multiprocessing:
+                    pygame.quit()
                 
             except:
                 pass
@@ -1928,6 +1929,7 @@ class PyRat ():
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE):
                         self.gui_running = False
+                        pygame.quit()
                 if not done:
                     break
                 time.sleep(0.5)
