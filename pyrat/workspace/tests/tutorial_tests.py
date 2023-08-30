@@ -6,10 +6,10 @@
     This program contains all the unit tests for the functions developed in the program "tutorial.py".
     Let's consider the following maze for our tests:
     #############################################################
-    # (0)       # (1)      # (2)       # (3)       # (4)        #
-    #           #          #           #           #            #
-    #           #          #           #           #            #
-    #############################################################
+    # (0)       # (1)      # (2)       ⵗ (3)       # (4)        #
+    #           #          #           ⵗ           #            #
+    #           #          #           ⵗ           #            #
+    #⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅############⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅##########################
     # (5)       ⵗ (6)       ⵗ (7)       ⵘ (8)       ⵘ (9)       #
     #           ⵗ           ⵗ           6           9            #
     #           ⵗ           ⵗ           ⵘ           ⵘ           #
@@ -17,7 +17,7 @@
     # (10)      ⵗ (11)      # (12)      # (13)      # (14)      #
     #           ⵗ           #           #           #           #
     #           ⵗ           #           #           #           #
-    #ⴾⴾⴾⴾⴾⴾ9ⴾⴾⴾⴾⴾⴾ#⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅#⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅#ⴾⴾⴾⴾⴾⴾ6ⴾⴾⴾⴾⴾⴾ#⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅#
+    #ⴾⴾⴾⴾⴾⴾ9ⴾⴾⴾⴾⴾⴾ#⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅#############ⴾⴾⴾⴾⴾⴾ6ⴾⴾⴾⴾⴾⴾ#⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅#
     # (15)      ⵘ (16)      ⵗ (17)      ⵘ (18)      ⵗ (19)      #
     #           4           ⵗ           5           ⵗ            #
     #           ⵘ           ⵗ           ⵘ           ⵗ           #
@@ -82,19 +82,21 @@ class TestsTutorial (unittest.TestCase):
         self.maze_width = 5
 
         # We define the graph structures that will be used for the tests
-        self.graph_dictionary = {5: {6: 1, 10: 1},
+        self.graph_dictionary = {0: {5: 1},
+                                 2: {3: 1, 7: 1},
+                                 3: {2: 1},
+                                 5: {0: 1, 6: 1, 10: 1},
                                  6: {5: 1, 7: 1, 11: 8},
-                                 7: {6: 1, 8: 6},
+                                 7: {2: 1, 3: 1, 6: 1, 8: 6},
                                  8: {7: 6, 9: 9, 13: 1},
                                  9: {8: 9},
                                  10: {5: 1, 11: 1, 15: 9},
                                  11: {6: 8, 10: 1, 16: 1},
-                                 12: {17: 1},
                                  13: {8: 1, 18: 6},
                                  14: {19: 1},
                                  15: {10: 9, 16: 4, 20: 1},
                                  16: {11: 1, 15: 4, 17: 1, 21: 1},
-                                 17: {12: 1, 16: 1, 18: 5, 22: 1},
+                                 17: {16: 1, 18: 5, 22: 1},
                                  18: {13: 6, 17: 5, 19: 1, 23: 1},
                                  19: {14: 1, 18: 1, 24: 1},
                                  20: {15: 1},
@@ -104,14 +106,14 @@ class TestsTutorial (unittest.TestCase):
                                  24: {19: 1}}
         
         # Here is the same graph represented as an adjacency matrix
-        self.graph_matrix = numpy.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        self.graph_matrix = numpy.array([[0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                         [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 6, 0, 9, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -121,12 +123,12 @@ class TestsTutorial (unittest.TestCase):
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 4, 0, 1, 0, 0, 0, 1, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0, 0, 0, 1, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0, 1, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 5, 0, 1, 0, 0, 0, 1, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]])
         
@@ -150,7 +152,7 @@ class TestsTutorial (unittest.TestCase):
         for graph in [self.graph_dictionary, self.graph_matrix]:
 
             # We check that the function returns the correct list of vertices
-            self.assertEqual(get_vertices(graph), [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
+            self.assertEqual(get_vertices(graph), [0, 2, 3, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
 
     #############################################################################################################################################
 
@@ -171,16 +173,16 @@ class TestsTutorial (unittest.TestCase):
 
             # We check that the function returns the correct list of neighbors for standard cases
             self.assertEqual(get_neighbors(9, graph), [8])
-            self.assertEqual(get_neighbors(5, graph), [6, 10])
+            self.assertEqual(get_neighbors(2, graph), [3, 7])
             self.assertEqual(get_neighbors(8, graph), [7, 9, 13])
-            self.assertEqual(get_neighbors(17, graph), [12, 16, 18, 22])
+            self.assertEqual(get_neighbors(16, graph), [11, 15, 17, 21])
 
             # The function should raise an exception if the vertex is not in the graph
             self.assertRaises(Exception, get_neighbors, 25, graph)
         
         # Note the different behavior between structures when not using the function correctly (cf. comments regarding assertions in function definition)
-        self.assertRaises(Exception, get_neighbors, 0, self.graph_dictionary)
-        self.assertEqual(get_neighbors(0, self.graph_matrix), [])
+        self.assertRaises(Exception, get_neighbors, 1, self.graph_dictionary)
+        self.assertEqual(get_neighbors(1, self.graph_matrix), [])
 
     #############################################################################################################################################
 
@@ -201,17 +203,16 @@ class TestsTutorial (unittest.TestCase):
 
             # We check that the function returns the correct weight for standard cases
             self.assertEqual(get_weight(9, 8, graph), 9)
-            self.assertEqual(get_weight(17, 12, graph), 1)
+            self.assertEqual(get_weight(17, 22, graph), 1)
 
             # The function should raise an exception if the vertex is not in the graph
-            self.assertRaises(Exception, get_weight, 0, 25, graph)
-            self.assertRaises(Exception, get_weight, 25, 0, graph)
+            self.assertRaises(Exception, get_weight, 24, 25, graph)
         
         # Note the different behavior between structures when not using the function correctly (cf. comments regarding assertions in function definition)
         self.assertRaises(Exception, get_weight, 0, 0, self.graph_dictionary)
-        self.assertRaises(Exception, get_weight, 0, 2, self.graph_dictionary)
+        self.assertRaises(Exception, get_weight, 0, 1, self.graph_dictionary)
         self.assertEqual(get_weight(0, 0, self.graph_matrix), 0)
-        self.assertEqual(get_weight(0, 2, self.graph_matrix), 0)
+        self.assertEqual(get_weight(0, 1, self.graph_matrix), 0)
 
     #############################################################################################################################################
 
@@ -228,14 +229,14 @@ class TestsTutorial (unittest.TestCase):
         """
 
         # We check that the function returns the correct action for standard cases
-        self.assertEqual(locations_to_action(17, 12, self.maze_width), "north")
-        self.assertEqual(locations_to_action(17, 16, self.maze_width), "west")
-        self.assertEqual(locations_to_action(17, 18, self.maze_width), "east")
-        self.assertEqual(locations_to_action(17, 22, self.maze_width), "south")
-        self.assertEqual(locations_to_action(17, 17, self.maze_width), "nothing")
+        self.assertEqual(locations_to_action(16, 11, self.maze_width), "north")
+        self.assertEqual(locations_to_action(16, 15, self.maze_width), "west")
+        self.assertEqual(locations_to_action(16, 17, self.maze_width), "east")
+        self.assertEqual(locations_to_action(16, 21, self.maze_width), "south")
+        self.assertEqual(locations_to_action(16, 16, self.maze_width), "nothing")
 
         # The function should raise an exception if the locations are not adjacent
-        self.assertRaises(Exception, locations_to_action, 17, 20, self.maze_width)
+        self.assertRaises(Exception, locations_to_action, 16, 20, self.maze_width)
 
 #####################################################################################################################################################
 ######################################################################## GO! ########################################################################
