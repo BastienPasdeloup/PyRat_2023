@@ -1491,9 +1491,10 @@ class PyRat ():
                         main_color = surface.unmap_rgb(max_occurrences[1])
                     return main_color
 
-                # Set window icon
-                icon = ___surface_from_image(os.path.join("gui", "drawings", "pyrat.png"), icon_size)
-                pygame.display.set_icon(icon)
+                # Set window icon (does not work on Windows, pretty funny isn't it?)
+                if not sys.platform.startswith("win"):
+                    icon = ___surface_from_image(os.path.join("gui", "drawings", "pyrat.png"), icon_size)
+                    pygame.display.set_icon(icon)
                 
                 # Set background color
                 pygame.draw.rect(self.gui_screen, background_color, pygame.Rect(0, 0, window_width, window_height))
