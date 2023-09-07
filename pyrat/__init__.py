@@ -1386,7 +1386,7 @@ class PyRat ():
                 cheese_score_border_color = (100, 100, 100)
                 cheese_score_border_width = 1
                 trace_size = wall_size // 2
-                animation_steps = max(cell_size // self.gui_speed, 1)
+                animation_steps = int(max(cell_size / self.gui_speed, 1))
                 animation_time = 0.01
                 medal_size = min(avatars_x_offset, maze_y_offset) * 2
                 icon_size = 50
