@@ -72,6 +72,7 @@ parser.add_argument("--synchronous",         action="store_true",               
 parser.add_argument("--continue_on_error",   action="store_true",                                        default=False,        help="If a player crashes, continues the game anyway")
 parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",        help="Method to display the game, or no_rendering to play without rendering")
 parser.add_argument("--render_simplified",   action="store_true",                                        default=False,        help="If the maze is rendered, hides some elements that are not essential")
+parser.add_argument("--gui_speed",           type=float,                                                 default=1.0,          help="When rendering as GUI, controls the speed of the game")
 parser.add_argument("--fullscreen",          action="store_true",                                        default=False,        help="Renders the game in fullscreen mode (GUI rendering only)")
 parser.add_argument("--trace_length",        type=int,                                                   default=0,            help="Maximum length of the trace to display when players are moving (GUI rendering only)")
 
@@ -111,6 +112,7 @@ class PyRat ():
                    fixed_cheese:        Union[None, str, List[int]] = args.fixed_cheese,
                    render_mode:         str = args.render_mode,
                    render_simplified:   bool = args.render_simplified,
+                   gui_speed:           float = args.gui_speed,
                    trace_length:        int = args.trace_length,
                    fullscreen:          bool = args.fullscreen,
                    save_path:           str = args.save_path,
@@ -142,6 +144,7 @@ class PyRat ():
                 * fixed_cheese:        Fixed list of cheese (takes priority over random number of cheese).
                 * render_mode:         Method to display the game, or no_rendering to play without rendering.
                 * render_simplified:   If the maze is rendered, hides some elements that are not essential.
+                * gui_speed:           When rendering as GUI, controls the speed of the game.
                 * trace_length:        Maximum length of the trace to display when players are moving (GUI rendering only).
                 * fullscreen:          Renders the game in fullscreen mode (GUI rendering only).
                 * save_path:           Path where games are saved.
@@ -183,6 +186,7 @@ class PyRat ():
         self.fixed_cheese = fixed_cheese
         self.render_mode = render_mode
         self.render_simplified = render_simplified
+        self.gui_speed = gui_speed
         self.fullscreen = fullscreen
         self.trace_length = trace_length
         self.save_path = save_path
@@ -1382,7 +1386,7 @@ class PyRat ():
                 cheese_score_border_color = (100, 100, 100)
                 cheese_score_border_width = 1
                 trace_size = wall_size // 2
-                animation_steps = cell_size
+                animation_steps = max(cell_size // self.gui_speed, 1)
                 animation_time = 0.01
                 medal_size = min(avatars_x_offset, maze_y_offset) * 2
                 icon_size = 50
