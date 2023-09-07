@@ -106,7 +106,6 @@ def turn ( maze:             Union[numpy.ndarray, Dict[int, Dict[int, int]]],
     unvisited_neighbors = [neighbor for neighbor in neighbors if neighbor not in memory.visited_cells]
     if len(unvisited_neighbors) > 0:
         neighbor = random.choice(unvisited_neighbors)
-        memory.visited_cells.append(neighbor)
         
     # If there is no unvisited neighbor, choose one randomly
     else:
