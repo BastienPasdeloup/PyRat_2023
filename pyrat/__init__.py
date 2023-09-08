@@ -32,11 +32,8 @@ import sys
 import os
 import datetime
 import glob
-import pygame
-import pygame.locals as pglocals
 import shutil
 import distinctipy
-import psutil
 import playsound
 from typing import *
 from typing_extensions import *
@@ -211,22 +208,14 @@ class PyRat ():
         self.player_muds = {}
         self.player_traces = {}
         self.actions_history = {}
-        self.gui_thread = None
-        self.gui_thread_queue = None
-        self.gui_screen = None
-        self.gui_running = None
+        self.gui_process = None
+        self.gui_process_queue = None
 
         # Initialize game elements
         self.maze, self.maze_public, self.maze_width, self.maze_height = self._create_maze()
         for player in players:
             self._register_player(**player)
         self.cheese = self._distribute_cheese()
-
-        # Windows and OSX do not handle multiprocessing correctly (spawn instead of fork, and constraints that pygame should be in the main thread)
-        # On these platforms, we work with threads instead
-        # However this does not guarantee resource equity between players as threads are single-core
-        # We still use processes on Linux to make sure there is equity during the final tournament
-        self.use_multiprocessing = sys.platform.startswith("linux")
 
     #############################################################################################################################################
     #                                                               STATIC METHODS                                                              #
@@ -263,82 +252,6 @@ class PyRat ():
                 * stats: Game statistics computed during the game.
         """
         
-        # Function to execute in a separate thread per player
-        def _player_thread_function (player, input_queue, output_queue, turn_start_synchronizer, turn_timeout_lock, turn_end_synchronizer):
-            try:
-            
-                # We will need the native id for threads equity
-                native_id = threading.get_native_id()
-                output_queue.put(native_id)
-            
-                # Main loop
-                memory = threading.local()
-                while True:
-                    
-                    # Wait for all players ready
-                    turn_start_synchronizer.wait()
-                    maze, maze_width, maze_height, teams, possible_actions, player_locations, player_scores, player_muds, cheese, turn, final_stats = input_queue.get()
-                    duration = None
-                    try:
-                        
-                        # Call postprocessing once the game is over
-                        if final_stats is not None:
-                            action = "postprocessing_error"
-                            if self.player_functions[player]["postprocessing"] is not None:
-                                self.player_functions[player]["postprocessing"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory, final_stats)
-                            action = "postprocessing"
-                            
-                        # If in mud, we return immediately (main thread will wait for us in all cases)
-                        elif player_muds[player]["target"] is not None:
-                            action = "mud"
-                        
-                        # Otherwise, we ask for an action
-                        else:
-                        
-                            # Measure start time
-                            start = time.process_time() if self.use_multiprocessing else time.thread_time()
-                            
-                            # Go
-                            if turn == 0:
-                                action = "preprocessing_error"
-                                if self.player_functions[player]["preprocessing"] is not None:
-                                    self.player_functions[player]["preprocessing"](maze, maze_width, maze_height, player, teams, player_locations, cheese, possible_actions, memory)
-                                action = "preprocessing"
-                            else:
-                                action = "error"
-                                a = self.player_functions[player]["turn"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory)
-                                if a not in possible_actions:
-                                    raise Exception("Invalid action %s by player %s" % (str(a), player))
-                                action = a
-                            
-                            # Set end time
-                            end_time = time.process_time() if self.use_multiprocessing else time.thread_time()
-                            duration = end_time - start
-                                
-                    # Print error message in case of a crash
-                    except:
-                        print("Player %s has crashed with the following error:" % (player), file=sys.stderr)
-                        print(traceback.format_exc(), file=sys.stderr)
-                            
-                    # Turn is over
-                    with turn_timeout_lock:
-                        output_queue.put((action, duration))
-                    turn_end_synchronizer.wait()
-                    if action.startswith("postprocessing"):
-                        break
-
-            except:
-                pass
-
-        # Function to execute in a separate thread per player to handle timeouts
-        def _waiter_thread_function (input_queue, turn_start_synchronizer):
-            try:
-                while True:
-                    _ = input_queue.get()
-                    turn_start_synchronizer.wait()
-            except:
-                pass
-
         # We catch exceptions that may happen during the game
         try:
             
@@ -347,119 +260,88 @@ class PyRat ():
             done = False
             possible_actions = ["nothing", "north", "east", "south", "west"]
 
-            # Initial rendering of the maze
-            self._render(turn, done)
-            
             # Initialize stats
             stats = {"players": {}, "turns": -1}
             for player in self.player_locations:
                 stats["players"][player] = {"actions": {"mud": 0, "error": 0, "miss": 0, "nothing": 0, "north": 0, "east": 0, "south": 0, "west": 0, "wall": 0}, "score": 0, "turn_durations": [], "preprocessing_duration": None}
             
-            # Create a thread per player
-            turn_start_synchronizer = self._new_barrier(len(self.player_locations) + 1)
-            turn_timeout_lock = self._new_lock()
-            player_threads = {}
+            # Create a process per player
+            turn_start_synchronizer = multiprocessing.Manager().Barrier(len(self.player_locations) + 1)
+            turn_timeout_lock = multiprocessing.Manager().Lock()
+            player_processs = {}
             player_fixed_data = {}
-            player_thread_ids = {}
             for player in self.player_locations:
                 player_fixed_data[player] = [self.maze_public.copy(), self.maze_width, self.maze_height, self.teams.copy(), possible_actions.copy()]
-                player_threads[player] = {"thread": None, "input_queue": self._new_queue(), "output_queue": self._new_queue(), "turn_end_synchronizer": self._new_barrier(2)}
-                player_threads[player]["thread"] = self._new_parallel(target=_player_thread_function, args=(player, player_threads[player]["input_queue"], player_threads[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_threads[player]["turn_end_synchronizer"],))
-                player_threads[player]["thread"].start()
-                player_thread_ids[player] = player_threads[player]["output_queue"].get()
+                player_processs[player] = {"process": None, "input_queue": multiprocessing.Manager().Queue(), "output_queue": multiprocessing.Manager().Queue(), "turn_end_synchronizer": multiprocessing.Manager().Barrier(2)}
+                player_processs[player]["process"] = multiprocessing.Process(target=_player_process_function, args=(player, player_processs[player]["input_queue"], player_processs[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_processs[player]["turn_end_synchronizer"], self.player_functions[player]["preprocessing"], self.player_functions[player]["turn"], self.player_functions[player]["postprocessing"],))
+                player_processs[player]["process"].start()
 
-            # If playing asynchrounously, we create threads to wait instead of missing players
+            # If playing asynchrounously, we create processs to wait instead of missing players
             if not self.synchronous:
-                waiter_threads = {}
-                for player in player_threads:
-                    waiter_threads[player] = {"thread": None, "input_queue": self._new_queue()}
-                    waiter_threads[player]["thread"] = self._new_parallel(target=_waiter_thread_function, args=(waiter_threads[player]["input_queue"], turn_start_synchronizer,))
-                    waiter_threads[player]["thread"].start()
+                waiter_processs = {}
+                for player in player_processs:
+                    waiter_processs[player] = {"process": None, "input_queue": multiprocessing.Manager().Queue()}
+                    waiter_processs[player]["process"] = multiprocessing.Process(target=_waiter_process_function, args=(waiter_processs[player]["input_queue"], turn_start_synchronizer,))
+                    waiter_processs[player]["process"].start()
 
-            # Returns the time elapsed by the player
-            def _player_time (player):
-                system_threads = psutil.Process().threads()
-                for t in system_threads:
-                    if t.id == player_thread_ids[player]:
-                        return t.user_time
-                return -1.0
+            # Initial rendering of the maze
+            self._render(turn, done)
             
             # We play until the game is over
-            players_ready = list(player_threads.keys())
-            players_running = {player: True for player in player_threads}
+            players_ready = list(player_processs.keys())
+            players_running = {player: True for player in player_processs}
             while any(players_running.values()):
-
-                # Mark the turn start for the players
-                # Useful to guarantee threads have at least the required time
-                if not self.use_multiprocessing:
-                    players_start_time = {}
-                    for player in player_thread_ids:
-                        players_start_time[player] = _player_time(player)
 
                 # We communicate the state of the game to the players not in mud
                 for player in players_ready:
                     final_stats = stats.copy() if done else None
-                    player_threads[player]["input_queue"].put((*player_fixed_data[player], self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats))
+                    player_processs[player]["input_queue"].put((*player_fixed_data[player], self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats))
                 turn_start_synchronizer.wait()
                 
                 # Check that a turn lasts al least the time it should for each player
-                # Useful to guarantee threads have at least the required time
+                # Useful to guarantee processs have at least the required time
                 sleep_time = self.preprocessing_time if turn == 0 else self.turn_time
-                if self.use_multiprocessing:
-                    time.sleep(sleep_time)
-                else:
-                    start = time.time()
-                    while True:
-                        min_elapsed_time = float("inf")
-                        for player in player_thread_ids:
-                            player_elapsed_time = _player_time(player) - players_start_time[player]
-                            player_still_running = player_threads[player]["output_queue"].empty()
-                            if player_elapsed_time < 0.0 or not player_still_running:
-                                continue
-                            min_elapsed_time = min(min_elapsed_time, player_elapsed_time)
-                        if min_elapsed_time >= sleep_time and time.time() - start >= sleep_time:
-                            break
-                        time.sleep(sleep_time / 10.0)
-
+                time.sleep(sleep_time)
+                
                 # In synchronous mode, we wait for everyone
-                actions_as_text = {player: "postprocessing" for player in player_threads}
-                durations = {player: None for player in player_threads}
+                actions_as_text = {player: "postprocessing" for player in player_processs}
+                durations = {player: None for player in player_processs}
                 if self.synchronous:
-                    for player in player_threads:
-                        player_threads[player]["turn_end_synchronizer"].wait()
-                        actions_as_text[player], durations[player] = player_threads[player]["output_queue"].get()
+                    for player in player_processs:
+                        player_processs[player]["turn_end_synchronizer"].wait()
+                        actions_as_text[player], durations[player] = player_processs[player]["output_queue"].get()
 
                 # Otherwise, we block the possibility to return an action and check who answered in time
                 else:
 
                     # Wait at least for those in mud
-                    for player in player_threads:
+                    for player in player_processs:
                         if self._is_in_mud(player) and players_running[player]:
-                            player_threads[player]["turn_end_synchronizer"].wait()
-                            actions_as_text[player], durations[player] = player_threads[player]["output_queue"].get()
+                            player_processs[player]["turn_end_synchronizer"].wait()
+                            actions_as_text[player], durations[player] = player_processs[player]["output_queue"].get()
 
                     # For others, set timeout and wait for output info of those who passed just before timeout
                     with turn_timeout_lock:
-                        for player in player_threads:
+                        for player in player_processs:
                             if not self._is_in_mud(player) and players_running[player]:
-                                if not player_threads[player]["output_queue"].empty():
-                                    player_threads[player]["turn_end_synchronizer"].wait()
-                                    actions_as_text[player], durations[player] = player_threads[player]["output_queue"].get()
+                                if not player_processs[player]["output_queue"].empty():
+                                    player_processs[player]["turn_end_synchronizer"].wait()
+                                    actions_as_text[player], durations[player] = player_processs[player]["output_queue"].get()
                                 else:
                                     actions_as_text[player] = "miss"
                         
                 # Check which players are ready to continue
                 players_ready = []
-                for player in player_threads:
+                for player in player_processs:
                     if actions_as_text[player].startswith("postprocessing"):
                         players_running[player] = False
                     if not self.synchronous and (actions_as_text[player].startswith("postprocessing") or actions_as_text[player] == "miss"):
-                        waiter_threads[player]["input_queue"].put(True)
+                        waiter_processs[player]["input_queue"].put(True)
                     else:
                         players_ready.append(player)
 
                 # Check for errors
-                if any([actions_as_text[player].endswith("error") for player in player_threads]) and not self.continue_on_error:
+                if any([actions_as_text[player].endswith("error") for player in player_processs]) and not self.continue_on_error:
                     raise Exception("A player has crashed, exiting")
 
                 # We save the turn info if we are not postprocessing
@@ -467,11 +349,11 @@ class PyRat ():
                 
                     # Apply the actions
                     locations_before = self.player_locations.copy()
-                    corrected_actions = {player: actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing" for player in player_threads}
+                    corrected_actions = {player: actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing" for player in player_processs}
                     done = self._update_game_state(corrected_actions)
                     
                     # Save stats
-                    for player in player_threads:
+                    for player in player_processs:
                         if not actions_as_text[player].startswith("preprocessing"):
                             if actions_as_text[player] in ["north", "west", "south", "east"] and locations_before[player] == self.player_locations[player] and not self._is_in_mud(player):
                                 stats["players"][player]["actions"]["wall"] += 1
@@ -492,98 +374,14 @@ class PyRat ():
                     turn += 1
                     self._render(turn, done)
 
-        # In case of an error, we ignore stats and quit the GUI if any
+        # In case of an error, we ignore stats
         except:
             print(traceback.format_exc(), file=sys.stderr)
             stats = {}
-            self.gui_running = False
-            pygame.quit()
         
         # Clean before returning
         self._close()
         return stats
-
-    #############################################################################################################################################
-    #                                                              PRIVATE METHODS                                                              #
-    #                                                             (SYNCHRONIZATION)                                                             #
-    #############################################################################################################################################
-
-    def _new_barrier ( self: Self,
-                       n:    int
-                     ) ->    Union[threading.Barrier, multiprocessing.Barrier]:
-
-        """
-            Creates a new barrier.
-            This should make the use of threading or multiprocessing transparent.
-            In:
-                * self: Reference to the current object.
-            Out:
-                * new_barrier: New barrier.
-        """
-
-        # Create a barrier
-        new_barrier = multiprocessing.Manager().Barrier(n) if self.use_multiprocessing else threading.Barrier(n)
-        return new_barrier
-
-    #############################################################################################################################################
-    
-    def _new_lock ( self: Self
-                  ) ->    Union[threading.Lock, multiprocessing.Lock]:
-
-        """
-            Creates a new lock.
-            This should make the use of threading or multiprocessing transparent.
-            In:
-                * self: Reference to the current object.
-            Out:
-                * new_lock: New lock.
-        """
-
-        # Create a lock
-        new_lock = multiprocessing.Manager().Lock() if self.use_multiprocessing else threading.Lock()
-        return new_lock
-
-    #############################################################################################################################################
-    
-    def _new_parallel ( self:     Self,
-                        *args:    Any,
-                        **kwargs: Any
-                      ) ->        Union[threading.Thread, multiprocessing.Process]:
-
-        """
-            Creates a new thread or process.
-            This should make the use of threading or multiprocessing transparent.
-            In:
-                * self: Reference to the current object.
-            Out:
-                * new_parallel: New thread or process.
-        """
-
-        # Create a parallel execution
-        if self.use_multiprocessing:
-            new_parallel = multiprocessing.Process(*args, **kwargs)
-        else:
-            new_parallel = threading.Thread(*args, **kwargs)
-            new_parallel.daemon = True
-        return new_parallel
-
-    #############################################################################################################################################
-    
-    def _new_queue ( self: Self
-                   ) ->    Union[queue.Queue, multiprocessing.Queue]:
-
-        """
-            Creates a new queue.
-            This should make the use of threading or multiprocessing transparent.
-            In:
-                * self: Reference to the current object.
-            Out:
-                * new_queue: New queue.
-        """
-
-        # Create a queue
-        new_queue = multiprocessing.Manager().Queue() if self.use_multiprocessing else queue.Queue()
-        return new_queue
 
     #############################################################################################################################################
     #                                                              PRIVATE METHODS                                                              #
@@ -637,8 +435,8 @@ class PyRat ():
                     print(save_template, file=output_file)
 
         # Wait for GUI to be exited to quit if there is one
-        if self.gui_thread is not None:
-            self.gui_thread.join()
+        if self.gui_process is not None:
+            self.gui_process.join()
         
     #############################################################################################################################################
 
@@ -694,16 +492,16 @@ class PyRat ():
         # Move all players accordingly
         for player in actions:
             try:
-                row, col = self._i_to_rc(self.player_locations[player])
+                row, col = self._i_to_rc(self.player_locations[player], self.maze_width)
                 target = None
                 if actions[player] == "north" and row > 0:
-                    target = self._rc_to_i(row - 1, col)
+                    target = self._rc_to_i(row - 1, col, self.maze_width)
                 elif actions[player] == "south" and row < self.maze_height - 1:
-                    target = self._rc_to_i(row + 1, col)
+                    target = self._rc_to_i(row + 1, col, self.maze_width)
                 elif actions[player] == "west" and col > 0:
-                    target = self._rc_to_i(row, col - 1)
+                    target = self._rc_to_i(row, col - 1, self.maze_width)
                 elif actions[player] == "east" and col < self.maze_width - 1:
-                    target = self._rc_to_i(row, col + 1)
+                    target = self._rc_to_i(row, col + 1, self.maze_width)
                 if target is not None and target in self.maze[self.player_locations[player]]:
                     weight = self.maze[self.player_locations[player]][target]
                     if weight == 1:
@@ -871,12 +669,12 @@ class PyRat ():
             row, col = cells[nprandom.randint(len(cells))]
             neighbor_row, neighbor_col = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)][nprandom.randint(4)]
             if 0 <= neighbor_row < self.maze_height and 0 <= neighbor_col < self.maze_width:
-                maze_sparse[self._rc_to_i(row, col), self._rc_to_i(neighbor_row, neighbor_col)] = 1
-                maze_sparse[self._rc_to_i(neighbor_row, neighbor_col), self._rc_to_i(row, col)] = 1
+                maze_sparse[self._rc_to_i(row, col, self.maze_width), self._rc_to_i(neighbor_row, neighbor_col, self.maze_width)] = 1
+                maze_sparse[self._rc_to_i(neighbor_row, neighbor_col, self.maze_width), self._rc_to_i(row, col, self.maze_width)] = 1
                 for next_neighbor_row, next_neighbor_col in [(neighbor_row - 1, neighbor_col), (neighbor_row + 1, neighbor_col), (neighbor_row, neighbor_col - 1), (neighbor_row, neighbor_col + 1)]:
                     if (next_neighbor_row, next_neighbor_col) in cells:
-                        maze_sparse[self._rc_to_i(next_neighbor_row, next_neighbor_col), self._rc_to_i(neighbor_row, neighbor_col)] = 1
-                        maze_sparse[self._rc_to_i(neighbor_row, neighbor_col), self._rc_to_i(next_neighbor_row, next_neighbor_col)] = 1
+                        maze_sparse[self._rc_to_i(next_neighbor_row, next_neighbor_col, self.maze_width), self._rc_to_i(neighbor_row, neighbor_col, self.maze_width)] = 1
+                        maze_sparse[self._rc_to_i(neighbor_row, neighbor_col, self.maze_width), self._rc_to_i(next_neighbor_row, next_neighbor_col, self.maze_width)] = 1
                 if (neighbor_row, neighbor_col) not in cells:
                     cells.append((neighbor_row, neighbor_col))
         
@@ -1029,7 +827,7 @@ class PyRat ():
         elif location == "same" and len(self.player_locations) > 0:
             self.player_locations[name] = list(self.player_locations.values())[-1]
         elif location == "center":
-            self.player_locations[name] = self._rc_to_i(self.maze_height // 2, self.maze_width // 2)
+            self.player_locations[name] = self._rc_to_i(self.maze_height // 2, self.maze_width // 2, self.maze_width)
         elif isinstance(location, int) and 0 <= location < self.maze_height * self.maze_width:
             if location in self.maze:
                 self.player_locations[name] = location
@@ -1060,9 +858,10 @@ class PyRat ():
     #                                                         (COORDINATES MANIPULATION)                                                        #
     #############################################################################################################################################
     
-    def _i_to_rc ( self: Self,
-                   i:    int
-                 ) ->    Tuple[int, int]:
+    def _i_to_rc ( self:       Self,
+                   i:          int,
+                   maze_width: int,
+                 ) ->          Tuple[int, int]:
         
         """
             Transforms a maze index in a pair (row, col).
@@ -1075,51 +874,32 @@ class PyRat ():
         """
         
         # Conversion
-        row = i // self.maze_width
-        col = i % self.maze_width
+        row = i // maze_width
+        col = i % maze_width
         return row, col
     
     #############################################################################################################################################
     
-    def _rc_to_i ( self: Self,
-                   row: int,
-                   col: int
-                 ) -> int:
+    def _rc_to_i ( self:       Self,
+                   row:        int,
+                   col:        int,
+                   maze_width: int,
+                 ) ->          int:
         
         """
             Transforms a (row, col) pair of maze coordiates (lexicographic order) in a maze index.
             In:
-                * self: Reference to the current object.
-                * row:  Row of the cell.
-                * col:  Column of the cell.
+                * self:       Reference to the current object.
+                * row:        Row of the cell.
+                * col:        Column of the cell.
+                * maze_width: Width of the maze.
             Out:
                 * i: Corresponding index in the adjacency matrix.
         """
         
         # Conversion
-        i = row * self.maze_width + col
+        i = row * maze_width + col
         return i
-    
-    #############################################################################################################################################
-    
-    def _cell_is_in_maze ( self: Self,
-                           row:  int,
-                           col:  int
-                         ) ->    bool:
-
-        """
-            Checks if the given pair of coordinates is accessible.
-            In:
-                * self: Reference to the current object.
-                * row:  Row of the cell.
-                * col:  Column of the cell.
-            Out:
-                * in_maze: True if the cell is accessible, False otherwise.
-        """
-
-        # Check if the given pair is accessible
-        in_maze = 0 <= row < self.maze_height and 0 <= col < self.maze_width and self._rc_to_i(row, col) in self.maze
-        return in_maze
     
     #############################################################################################################################################
     #                                                              PRIVATE METHODS                                                              #
@@ -1239,17 +1019,17 @@ class PyRat ():
                 for col in range(self.maze_width):
                     
                     # Check cell contents
-                    players_in_cell = [player for player in self.player_locations if self.player_locations[player] == self._rc_to_i(row, col)]
-                    cheese_in_cell = self._rc_to_i(row, col) in self.cheese
+                    players_in_cell = [player for player in self.player_locations if self.player_locations[player] == self._rc_to_i(row, col, self.maze_width)]
+                    cheese_in_cell = self._rc_to_i(row, col, self.maze_width) in self.cheese
 
                     # Find subrow contents (nothing, cell number, cheese, trace, player)
-                    unconnected_cell = self._rc_to_i(row, col) not in self.maze
+                    unconnected_cell = self._rc_to_i(row, col, self.maze_width) not in self.maze
                     background = wall if unconnected_cell else ground
                     cell_contents = ""
                     if subrow == 0:
                         if background != wall and not self.render_simplified:
                             cell_contents += background
-                            cell_contents += cell_number(self._rc_to_i(row, col))
+                            cell_contents += cell_number(self._rc_to_i(row, col, self.maze_width))
                     elif cheese_in_cell:
                         if subrow == (cell_height - 1) // 2:
                             cell_contents = background * ((cell_width - __colored_len(cheese)) // 2)
@@ -1267,7 +1047,7 @@ class PyRat ():
                     environment_str += background * (cell_width - __colored_len(cell_contents))
                     
                     # Right separation
-                    right_weight = "0" if unconnected_cell or self._rc_to_i(row, col + 1) not in self.maze[self._rc_to_i(row, col)] else str(self.maze[self._rc_to_i(row, col)][self._rc_to_i(row, col + 1)])
+                    right_weight = "0" if unconnected_cell or self._rc_to_i(row, col + 1, self.maze_width) not in self.maze[self._rc_to_i(row, col, self.maze_width)] else str(self.maze[self._rc_to_i(row, col, self.maze_width)][self._rc_to_i(row, col + 1, self.maze_width)])
                     if col == self.maze_width - 1 or right_weight == "0":
                         environment_str += wall
                     else:
@@ -1283,8 +1063,8 @@ class PyRat ():
             
             # Bottom separation
             for col in range(self.maze_width):
-                unconnected_cell = self._rc_to_i(row, col) not in self.maze
-                bottom_weight = "0" if unconnected_cell or self._rc_to_i(row + 1, col) not in self.maze[self._rc_to_i(row, col)] else str(self.maze[self._rc_to_i(row, col)][self._rc_to_i(row + 1, col)])
+                unconnected_cell = self._rc_to_i(row, col, self.maze_width) not in self.maze
+                bottom_weight = "0" if unconnected_cell or self._rc_to_i(row + 1, col, self.maze_width) not in self.maze[self._rc_to_i(row, col, self.maze_width)] else str(self.maze[self._rc_to_i(row, col, self.maze_width)][self._rc_to_i(row + 1, col, self.maze_width)])
                 if bottom_weight == "0":
                     environment_str += wall * (cell_width + 1)
                 elif bottom_weight == "1":
@@ -1318,625 +1098,758 @@ class PyRat ():
                 * None.
         """
 
-        # Define a function to run the GUI in a separate thread
-        def __gui_thread_function (gui_initialized_synchronizer, gui_queue):
-            try:
-                
-                # In multiprocessing, we initialize pygame in its own process
-                if self.use_multiprocessing:
-                    pygame.init()
-                    if self.fullscreen:
-                        self.gui_screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
-                        pygame.display.toggle_fullscreen()
-                    else:
-                        self.gui_screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
-
-                # We will store elements to display
-                maze_elements = []
-                avatar_elements = []
-                player_elements = {}
-                cheese_elements = {}
-                
-                # Dimensions
-                window_width, window_height = pygame.display.get_surface().get_size()
-                cell_size = int(min(window_width / self.maze_width, window_height / self.maze_height) * 0.9)
-                background_color = (0, 0, 0)
-                cell_text_color = (50, 50, 50)
-                cell_text_offset = int(cell_size * 0.1)
-                wall_size = cell_size // 7
-                mud_text_color = (185, 155, 60)
-                corner_wall_ratio = 1.2
-                flag_size = int(cell_size * 0.4)
-                flag_x_offset = int(cell_size * 0.2)
-                flag_x_next_offset = int(cell_size * 0.07)
-                flag_y_offset = int(cell_size * 0.3)
-                game_area_width = cell_size * self.maze_width
-                game_area_height = cell_size * self.maze_height
-                maze_x_offset = int((window_width - game_area_width) * 0.9)
-                maze_y_offset = (window_height - game_area_height) // 2
-                avatars_x_offset = window_width - maze_x_offset - game_area_width
-                avatars_area_width = maze_x_offset - 2 * avatars_x_offset
-                avatars_area_height = min(game_area_height // 2, (game_area_height - (len(self.teams) - 1) * maze_y_offset) // len(self.teams))
-                avatars_area_border = 2
-                avatars_area_angle = 10
-                avatars_area_color = (255, 255, 255)
-                teams_enabled = len(self.teams) > 1 or len(list(self.teams.keys())[0]) > 0
-                if teams_enabled:
-                    avatars_area_padding = avatars_area_height // 13
-                    team_text_size = avatars_area_padding * 3
-                    colors = distinctipy.distinctipy.get_colors(len(self.teams))
-                    team_colors = {list(self.teams.keys())[i]: tuple([int(c * 255) for c in colors[i]]) for i in range(len(self.teams))}
-                else:
-                    avatars_area_padding = avatars_area_height // 12
-                    team_text_size = 0
-                    avatars_area_height -= avatars_area_padding * 3
-                    team_colors = {list(self.teams.keys())[i]: avatars_area_color for i in range(len(self.teams))}
-                player_avatar_size = avatars_area_padding * 3
-                player_avatar_horizontal_padding = avatars_area_padding * 4
-                player_name_text_size = avatars_area_padding
-                cheese_score_size = avatars_area_padding
-                text_size = int(cell_size * 0.17)
-                cheese_size = int(cell_size * 0.4)
-                player_size = int(cell_size * 0.5)
-                flag_border_color = (255, 255, 255)
-                flag_border_width = 1
-                player_border_width = 2
-                cheese_border_color = (255, 255, 0)
-                cheese_border_width = 1
-                cheese_score_border_color = (100, 100, 100)
-                cheese_score_border_width = 1
-                trace_size = wall_size // 2
-                animation_steps = int(max(cell_size / self.gui_speed, 1))
-                animation_time = 0.01
-                medal_size = min(avatars_x_offset, maze_y_offset) * 2
-                icon_size = 50
-                main_image_factor = 0.8
-                main_image_border_color = (0, 0, 0)
-                main_image_border_size = 1
-                
-                # Function to load an image with some scaling
-                # If only 2 arguments are provided, scales keeping ratio specifying the maximum size
-                # If first argument is a directory, returns a random image from it
-                already_loaded_images = {}
-                def ___surface_from_image (file_or_dir_name, target_width_or_max_size, target_height=None):
-                    full_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_or_dir_name)
-                    if os.path.isdir(full_path):
-                        full_path = nprandom.choice(glob.glob(os.path.join(full_path, "*")))
-                    loaded_image_key = str(full_path) + "_" + str(target_width_or_max_size) + "_" + str(target_height)
-                    if loaded_image_key in already_loaded_images:
-                        return already_loaded_images[loaded_image_key]
-                    surface = pygame.image.load(full_path).convert_alpha()
-                    if target_height is None:
-                        max_surface_size = max(surface.get_width(), surface.get_height())
-                        surface = pygame.transform.scale(surface, (surface.get_width() * target_width_or_max_size // max_surface_size, surface.get_height() * target_width_or_max_size // max_surface_size))
-                    else:
-                        surface = pygame.transform.scale(surface, (target_width_or_max_size, target_height))
-                    already_loaded_images[loaded_image_key] = surface
-                    return surface
-                
-                # Same function for text
-                def ___surface_from_text (text, target_height, text_color, original_font_size=50):
-                    surface = pygame.font.SysFont(None, original_font_size).render(text, True, text_color)
-                    surface = pygame.transform.scale(surface, (surface.get_width() * target_height // surface.get_height(), target_height))
-                    return surface
-
-                # Function to colorize an object
-                def ___colorize (surface, color):
-                    final_surface = surface.copy()
-                    color_surface = pygame.Surface(final_surface.get_size()).convert_alpha()
-                    color_surface.fill(color)
-                    final_surface.blit(color_surface, (0, 0), special_flags=pygame.BLEND_MULT)
-                    return final_surface
-                    
-                # Function to add a colored border around an object
-                def ___add_color_border (surface, border_color, border_size, final_rescale=True):
-                    final_surface = pygame.Surface((surface.get_width() + 2 * border_size, surface.get_height() + 2 * border_size)).convert_alpha()
-                    final_surface.fill((0, 0, 0, 0))
-                    mask_surface = surface.copy()
-                    color_surface = pygame.Surface(mask_surface.get_size())
-                    color_surface.fill((0, 0, 0, 0))
-                    mask_surface.blit(color_surface, (0, 0), special_flags=pygame.BLEND_MIN)
-                    color_surface.fill(border_color)
-                    mask_surface.blit(color_surface, (0, 0), special_flags=pygame.BLEND_MAX)
-                    for offset_x in range(-border_size, border_size + 1):
-                        for offset_y in range(-border_size, border_size + 1):
-                            if numpy.linalg.norm([offset_x, offset_y]) <= border_size:
-                                final_surface.blit(mask_surface, (border_size // 2 + offset_x, border_size // 2 + offset_y))
-                    final_surface.blit(surface, (border_size // 2, border_size // 2))
-                    if final_rescale:
-                        final_surface = pygame.transform.scale(final_surface, surface.get_size())
-                    return final_surface
-
-                # Function to load the surfaces of a player
-                def ___load_player_surfaces (player_skin, scale, border_color=None, border_width=None, add_border=teams_enabled):
-                    try:
-                        player_neutral = ___surface_from_image(os.path.join("gui", "players", player_skin, "neutral.png"), scale)
-                        player_north = ___surface_from_image(os.path.join("gui", "players", player_skin, "north.png"), scale)
-                        player_south = ___surface_from_image(os.path.join("gui", "players", player_skin, "south.png"), scale)
-                        player_west = ___surface_from_image(os.path.join("gui", "players", player_skin, "west.png"), scale)
-                        player_east = ___surface_from_image(os.path.join("gui", "players", player_skin, "east.png"), scale)
-                        if add_border:
-                            player_neutral = ___add_color_border(player_neutral, border_color, border_width)
-                            player_north = ___add_color_border(player_north, border_color, border_width)
-                            player_south = ___add_color_border(player_south, border_color, border_width)
-                            player_west = ___add_color_border(player_west, border_color, border_width)
-                            player_east = ___add_color_border(player_east, border_color, border_width)
-                        return player_neutral, player_north, player_south, player_west, player_east
-                    except:
-                        return ___load_player_surfaces("default", scale, border_color, border_width, add_border)
-                
-                # Function to play a sound
-                def ___play_sound (file_name, alternate_file_name=None):
-                    try:
-                        sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_name)
-                        playsound.playsound(sound_file, block=False)
-                    except:
-                        try:
-                            sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), alternate_file_name)
-                            playsound.playsound(sound_file, block=False)
-                        except:
-                            pass
-                
-                # Function to load the avatar of a player
-                def ___load_player_avatar (player_skin, scale):
-                    try:
-                        return ___surface_from_image(os.path.join("gui", "players", player_skin, "avatar.png"), scale)
-                    except:
-                        return ___load_player_avatar("default", scale)
-                
-                # Function to get the main color of a surface
-                def ___get_main_color (surface):
-                    colors = pygame.surfarray.array2d(surface)
-                    values, counts = numpy.unique(colors, return_counts=True)
-                    argmaxes = numpy.argpartition(-counts, kth=2)[:2]
-                    max_occurrences = values[argmaxes]
-                    main_color = surface.unmap_rgb(max_occurrences[0])
-                    if main_color == (0, 0, 0, 0):
-                        main_color = surface.unmap_rgb(max_occurrences[1])
-                    return main_color
-
-                # Set window icon (does not work on Windows, pretty funny isn't it?)
-                if not sys.platform.startswith("win"):
-                    icon = ___surface_from_image(os.path.join("gui", "drawings", "pyrat.png"), icon_size)
-                    pygame.display.set_icon(icon)
-                
-                # Set background color
-                pygame.draw.rect(self.gui_screen, background_color, pygame.Rect(0, 0, window_width, window_height))
-                
-                # Add cells
-                for row in range(self.maze_height):
-                    for col in range(self.maze_width):
-                        if self._cell_is_in_maze(row, col):
-                            cell = ___surface_from_image(os.path.join("gui", "ground"), cell_size, cell_size)
-                            cell = pygame.transform.rotate(cell, nprandom.randint(4) * 90)
-                            cell = pygame.transform.flip(cell, bool(nprandom.randint(2)), bool(nprandom.randint(2)))
-                            cell_x = maze_x_offset + col * cell_size
-                            cell_y = maze_y_offset + row * cell_size
-                            maze_elements.append((cell_x, cell_y, cell))
-                            
-                # Add mud
-                mud = ___surface_from_image(os.path.join("gui", "mud", "mud.png"), cell_size)
-                for row in range(self.maze_height):
-                    for col in range(self.maze_width):
-                        if self._cell_is_in_maze(row, col):
-                            if self._cell_is_in_maze(row, col - 1):
-                                if self._rc_to_i(row, col - 1) in self.maze[self._rc_to_i(row, col)]:
-                                    if self.maze[self._rc_to_i(row, col)][self._rc_to_i(row, col - 1)] > 1:
-                                        mud_x = maze_x_offset + col * cell_size - mud.get_width() // 2
-                                        mud_y = maze_y_offset + row * cell_size
-                                        maze_elements.append((mud_x, mud_y, mud))
-                                        if not self.render_simplified:
-                                            weight_text = ___surface_from_text(str(self.maze[self._rc_to_i(row, col)][self._rc_to_i(row, col - 1)]), text_size, mud_text_color)
-                                            weight_text_x = maze_x_offset + col * cell_size - weight_text.get_width() // 2
-                                            weight_text_y = maze_y_offset + row * cell_size + (cell_size - weight_text.get_height()) // 2
-                                            maze_elements.append((weight_text_x, weight_text_y, weight_text))
-                            if self._cell_is_in_maze(row - 1, col):
-                                if self._rc_to_i(row - 1, col) in self.maze[self._rc_to_i(row, col)]:
-                                    if self.maze[self._rc_to_i(row, col)][self._rc_to_i(row - 1, col)] > 1:
-                                        mud_horizontal = pygame.transform.rotate(mud, 90)
-                                        mud_x = maze_x_offset + col * cell_size
-                                        mud_y = maze_y_offset + row * cell_size - mud.get_width() // 2
-                                        maze_elements.append((mud_x, mud_y, mud_horizontal))
-                                        if not self.render_simplified:
-                                            weight_text = ___surface_from_text(str(self.maze[self._rc_to_i(row, col)][self._rc_to_i(row - 1, col)]), text_size, mud_text_color)
-                                            weight_text_x = maze_x_offset + col * cell_size + (cell_size - weight_text.get_width()) // 2
-                                            weight_text_y = maze_y_offset + row * cell_size - weight_text.get_height() // 2
-                                            maze_elements.append((weight_text_x, weight_text_y, weight_text))
-
-                # Add cell numbers
-                if not self.render_simplified:
-                    for row in range(self.maze_height):
-                        for col in range(self.maze_width):
-                            if self._cell_is_in_maze(row, col):
-                                cell_text = ___surface_from_text(str(self._rc_to_i(row, col)), text_size, cell_text_color)
-                                cell_text_x = maze_x_offset + col * cell_size + cell_text_offset
-                                cell_text_y = maze_y_offset + row * cell_size + cell_text_offset
-                                maze_elements.append((cell_text_x, cell_text_y, cell_text))
-                
-                # Add walls
-                walls = []
-                wall = ___surface_from_image(os.path.join("gui", "wall", "wall.png"), cell_size)
-                for row in range(self.maze_height + 1):
-                    for col in range(self.maze_width + 1):
-                        case_outside_to_inside = not self._cell_is_in_maze(row, col) and self._cell_is_in_maze(row, col - 1)
-                        case_inside_to_outside = self._cell_is_in_maze(row, col) and not self._cell_is_in_maze(row, col - 1)
-                        case_inside_to_inside = self._cell_is_in_maze(row, col) and self._cell_is_in_maze(row, col - 1) and self._rc_to_i(row, col - 1) not in self.maze[self._rc_to_i(row, col)]
-                        if case_outside_to_inside or case_inside_to_outside or case_inside_to_inside:
-                            wall_x = maze_x_offset + col * cell_size - wall.get_width() // 2
-                            wall_y = maze_y_offset + row * cell_size
-                            maze_elements.append((wall_x, wall_y, wall))
-                            walls.append((row, col, row, col - 1))
-                        case_outside_to_inside = not self._cell_is_in_maze(row, col) and self._cell_is_in_maze(row - 1, col)
-                        case_inside_to_outside = self._cell_is_in_maze(row, col) and not self._cell_is_in_maze(row - 1, col)
-                        case_inside_to_inside = self._cell_is_in_maze(row, col) and self._cell_is_in_maze(row - 1, col) and self._rc_to_i(row - 1, col) not in self.maze[self._rc_to_i(row, col)]
-                        if case_outside_to_inside or case_inside_to_outside or case_inside_to_inside:
-                            wall_horizontal = pygame.transform.rotate(wall, 90)
-                            wall_x = maze_x_offset + col * cell_size
-                            wall_y = maze_y_offset + row * cell_size - wall.get_width() // 2
-                            maze_elements.append((wall_x, wall_y, wall_horizontal))
-                            walls.append((row, col, row - 1, col))
-                    
-                # Add corners
-                corner = ___surface_from_image(os.path.join("gui", "wall", "corner.png"), int(wall.get_width() * corner_wall_ratio), int(wall.get_width() * corner_wall_ratio))
-                for row, col, neighbor_row, neighbor_col in walls:
-                    if col != neighbor_col:
-                        corner_x = maze_x_offset + col * cell_size - corner.get_width() // 2
-                        if (row - 1, col, neighbor_row - 1, neighbor_col) not in walls or ((neighbor_row, neighbor_col, neighbor_row - 1, neighbor_col) in walls and (row, col, row - 1, col) in walls and (row - 1, col, neighbor_row - 1, neighbor_col) in walls):
-                            corner_y = maze_y_offset + row * cell_size - corner.get_width() // 2
-                            maze_elements.append((corner_x, corner_y, corner))
-                        if (row + 1, col, neighbor_row + 1, neighbor_col) not in walls:
-                            corner_y = maze_y_offset + (row + 1) * cell_size - corner.get_width() // 2
-                            maze_elements.append((corner_x, corner_y, corner))
-                    if row != neighbor_row:
-                        corner_y = maze_y_offset + row * cell_size - corner.get_width() // 2
-                        if (row, col - 1, neighbor_row, neighbor_col - 1) not in walls:
-                            corner_x = maze_x_offset + col * cell_size - corner.get_width() // 2
-                            maze_elements.append((corner_x, corner_y, corner))
-                        if (row, col + 1, neighbor_row, neighbor_col + 1) not in walls:
-                            corner_x = maze_x_offset + (col + 1) * cell_size - corner.get_width() // 2
-                            maze_elements.append((corner_x, corner_y, corner))
-                
-                # Add flags
-                if not self.render_simplified:
-                    cells_with_flags = {cell: {} for cell in self.player_locations.values()}
-                    for player in self.player_locations:
-                        team = [team for team in self.teams if player in self.teams[team]][0]
-                        if team not in cells_with_flags[self.player_locations[player]]:
-                            cells_with_flags[self.player_locations[player]][team] = 0
-                        cells_with_flags[self.player_locations[player]][team] += 1
-                    flag = ___surface_from_image(os.path.join("gui", "flag", "flag.png"), flag_size)
-                    max_teams_in_cells = max([len(team) for team in cells_with_flags.values()])
-                    max_players_in_cells = max([cells_with_flags[cell][team] for cell in cells_with_flags for team in cells_with_flags[cell]])
-                    for cell in cells_with_flags:
-                        row, col = self._i_to_rc(cell)
-                        for i_team in range(len(cells_with_flags[cell])):
-                            team = list(cells_with_flags[cell].keys())[i_team]
-                            flag_colored = ___colorize(flag, team_colors[team])
-                            flag_colored = ___add_color_border(flag_colored, flag_border_color, flag_border_width)
-                            for i_player in range(cells_with_flags[cell][team]):
-                                flag_x = maze_x_offset + (col + 1) * cell_size - flag_x_offset - i_player * min(flag_x_next_offset, (cell_size - flag_x_offset) / (max_players_in_cells + 1))
-                                flag_y = maze_y_offset + row * cell_size - flag.get_height() + flag_y_offset + i_team * min(flag_y_offset, (cell_size - flag_y_offset) / (max_teams_in_cells + 1))
-                                maze_elements.append((flag_x, flag_y, flag_colored))
-
-                # Add cheese
-                cheese = ___surface_from_image(os.path.join("gui", "cheese", "cheese.png"), cheese_size)
-                cheese = ___add_color_border(cheese, cheese_border_color, cheese_border_width)
-                for c in self.cheese:
-                    row, col = self._i_to_rc(c)
-                    cheese_x = maze_x_offset + col * cell_size + (cell_size - cheese.get_width()) // 2
-                    cheese_y = maze_y_offset + row * cell_size + (cell_size - cheese.get_height()) // 2
-                    cheese_elements[c] = (cheese_x, cheese_y, cheese)
-                
-                # Add players
-                for player_name in self.player_locations:
-                    team = [team for team in self.teams if player_name in self.teams[team]][0]
-                    player_neutral, player_north, player_south, player_west, player_east = ___load_player_surfaces(self.player_skins[player_name], player_size, team_colors[team], player_border_width)
-                    row, col = self._i_to_rc(self.player_locations[player_name])
-                    player_x = maze_x_offset + col * cell_size + (cell_size - player_neutral.get_width()) // 2
-                    player_y = maze_y_offset + row * cell_size + (cell_size - player_neutral.get_height()) // 2
-                    player_elements[player_name] = (player_x, player_y, player_neutral, player_north, player_south, player_west, player_east)
-                
-                # Add avatars area
-                score_locations = {}
-                medal_locations = {}
-                for i in range(len(self.teams)):
-                
-                    # Box
-                    team = list(self.teams.keys())[i]
-                    team_background = pygame.Surface((avatars_area_width, avatars_area_height))
-                    pygame.draw.rect(team_background, background_color, pygame.Rect(0, 0, avatars_area_width, avatars_area_height))
-                    pygame.draw.rect(team_background, team_colors[team], pygame.Rect(0, 0, avatars_area_width, avatars_area_height), avatars_area_border, avatars_area_angle)
-                    team_background_x = avatars_x_offset
-                    team_background_y = (1 + i) * maze_y_offset + i * avatars_area_height if len(self.teams) > 1 else (window_height - avatars_area_height) // 2
-                    avatar_elements.append((team_background_x, team_background_y, team_background))
-                    medal_locations[team] = (team_background_x + avatars_area_width, team_background_y)
-                    
-                    # Team name
-                    team_text = ___surface_from_text(team, team_text_size, team_colors[team])
-                    if team_text.get_width() > avatars_area_width - 2 * avatars_area_padding:
-                        ratio = (avatars_area_width - 2 * avatars_area_padding) / team_text.get_width()
-                        team_text = pygame.transform.scale(team_text, (int(team_text.get_width() * ratio), int(team_text.get_height() * ratio)))
-                    team_text_x = avatars_x_offset + (avatars_area_width - team_text.get_width()) // 2
-                    team_text_y = team_background_y + avatars_area_padding + (team_text_size - team_text.get_height()) // 2
-                    if not teams_enabled:
-                        team_text_size = -avatars_area_padding
-                    avatar_elements.append((team_text_x, team_text_y, team_text))
-                    
-                    # Players images
-                    players = []
-                    for j in range(len(self.teams[team])):
-                        player_name = self.teams[team][j]
-                        player_avatar = ___load_player_avatar(self.player_skins[player_name], player_avatar_size)
-                        players.append((player_name, player_avatar))
-                    avatar_area = pygame.Surface((2 * avatars_area_padding + sum([player[1].get_width() for player in players]) + player_avatar_horizontal_padding * (len(players) - 1), player_avatar_size))
-                    pygame.draw.rect(avatar_area, background_color, pygame.Rect(0, 0, avatar_area.get_width(), avatar_area.get_height()))
-                    player_x = avatars_area_padding
-                    centers = []
-                    for player_name, player in players:
-                        avatar_area.blit(player, (player_x, 0))
-                        centers.append(player_x + player.get_width() // 2)
-                        player_x += player.get_width() + player_avatar_horizontal_padding
-                    if avatar_area.get_width() > avatars_area_width - 2 * avatars_area_padding:
-                        ratio = (avatars_area_width - 2 * avatars_area_padding) / avatar_area.get_width()
-                        centers = [center * ratio for center in centers]
-                        avatar_area = pygame.transform.scale(avatar_area, (int(avatar_area.get_width() * ratio), int(avatar_area.get_height() * ratio)))
-                    avatar_area_x = avatars_x_offset + (avatars_area_width - avatar_area.get_width()) // 2
-                    avatar_area_y = team_background_y + 2 * avatars_area_padding + team_text_size + (player_avatar_size - avatar_area.get_height()) // 2
-                    avatar_elements.append((avatar_area_x, avatar_area_y, avatar_area))
-
-                    # Players names
-                    for j in range(len(self.teams[team])):
-                        player_name = self.teams[team][j]
-                        while True:
-                            player_name_text = ___surface_from_text(player_name, player_name_text_size, avatars_area_color)
-                            if player_name_text.get_width() > (avatars_area_width - 2 * avatars_area_padding) / len(self.teams[team]):
-                                player_name = player_name[:-2] + "."
-                            else:
-                                break
-                        player_name_text_x = avatar_area_x + centers[j] - player_name_text.get_width() // 2
-                        player_name_text_y = team_background_y + 3 * avatars_area_padding + team_text_size + player_avatar_size + (player_name_text_size - player_name_text.get_height()) // 2
-                        avatar_elements.append((player_name_text_x, player_name_text_y, player_name_text))
-                
-                    # Score locations
-                    cheese_missing = ___surface_from_image(os.path.join("gui", "cheese", "cheese_missing.png"), cheese_score_size)
-                    score_x_offset = avatars_x_offset + avatars_area_padding
-                    score_margin = avatars_area_width - 2 * avatars_area_padding - cheese_missing.get_width()
-                    if self.nb_cheese > 1:
-                        score_margin /= (self.nb_cheese - 1)
-                    score_margin = min(score_margin, cheese_missing.get_width() * 2)
-                    estimated_width = cheese_missing.get_width() + (self.nb_cheese - 1) * score_margin
-                    if estimated_width < avatars_area_width - 2 * avatars_area_padding:
-                        score_x_offset += (avatars_area_width - 2 * avatars_area_padding - estimated_width) / 2
-                    score_y_offset = team_background_y + 4 * avatars_area_padding + team_text_size + player_avatar_size + player_name_text_size
-                    score_locations[team] = (score_x_offset, score_margin, score_y_offset)
-
-                # Show maze
-                def ___show_maze ():
-                    pygame.draw.rect(self.gui_screen, background_color, pygame.Rect(maze_x_offset, maze_y_offset, game_area_width, game_area_height))
-                    for surface_x, surface_y, surface in maze_elements:
-                        self.gui_screen.blit(surface, (surface_x, surface_y))
-                ___show_maze()
-                
-                # Show cheese
-                def ___show_cheese (cheese):
-                    for c in cheese:
-                        cheese_x, cheese_y, surface = cheese_elements[c]
-                        self.gui_screen.blit(surface, (cheese_x, cheese_y))
-                ___show_cheese(self.cheese)
-                
-                # Show_players at initial locations
-                for p in player_elements:
-                    player_x, player_y, player_neutral, _, _ , _, _ = player_elements[p]
-                    self.gui_screen.blit(player_neutral, (player_x, player_y))
-                
-                # Show avatars
-                def ___show_avatars ():
-                    for surface_x, surface_y, surface in avatar_elements:
-                        self.gui_screen.blit(surface, (surface_x, surface_y))
-                ___show_avatars()
-                
-                # Show scores
-                def ___show_scores (team_scores):
-                    cheese_missing = ___surface_from_image(os.path.join("gui", "cheese", "cheese_missing.png"), cheese_score_size)
-                    cheese_missing = ___add_color_border(cheese_missing, cheese_score_border_color, cheese_score_border_width)
-                    cheese_eaten = ___surface_from_image(os.path.join("gui", "cheese", "cheese_eaten.png"), cheese_score_size)
-                    cheese_eaten = ___add_color_border(cheese_eaten, cheese_score_border_color, cheese_score_border_width)
-                    for team in score_locations:
-                        score_x_offset, score_margin, score_y_offset = score_locations[team]
-                        for i in range(int(team_scores[team])):
-                            self.gui_screen.blit(cheese_eaten, (score_x_offset + i * score_margin, score_y_offset))
-                        if int(team_scores[team]) != team_scores[team]:
-                            cheese_partial = ___surface_from_image(os.path.join("gui", "cheese", "cheese_eaten.png"), cheese_score_size)
-                            cheese_partial = ___colorize(cheese_partial, [(team_scores[team] - int(team_scores[team])) * 255] * 3)
-                            cheese_partial = ___add_color_border(cheese_partial, cheese_score_border_color, cheese_score_border_width)
-                            self.gui_screen.blit(cheese_partial, (score_x_offset + int(team_scores[team]) * score_margin, score_y_offset))
-                        for j in range(int(numpy.ceil(team_scores[team])), self.nb_cheese):
-                            self.gui_screen.blit(cheese_missing, (score_x_offset + j * score_margin, score_y_offset))
-                ___show_scores(self._score_per_team())
-                
-                # Show preprocessing message
-                preprocessing_image = ___surface_from_image(os.path.join("gui", "drawings", "pyrat_preprocessing.png"), int(min(game_area_width, game_area_height) * main_image_factor))
-                preprocessing_image = ___add_color_border(preprocessing_image, main_image_border_color, main_image_border_size)
-                go_image = ___surface_from_image(os.path.join("gui", "drawings", "pyrat_go.png"), int(min(game_area_width, game_area_height) * main_image_factor))
-                go_image = ___add_color_border(go_image, main_image_border_color, main_image_border_size)
-                main_image_x = maze_x_offset + (game_area_width - preprocessing_image.get_width()) / 2
-                main_image_y = maze_y_offset + (game_area_height - preprocessing_image.get_height()) / 2
-                self.gui_screen.blit(preprocessing_image, (main_image_x, main_image_y))
-                
-                # Prepare useful variables
-                current_player_locations = self.player_locations.copy()
-                current_cheese = self.cheese.copy()
-                mud_being_crossed = {player: 0 for player in self.player_locations}
-                traces = {player: [(player_elements[player][0] + player_elements[player][2].get_width() / 2, player_elements[player][1] + player_elements[player][2].get_height() / 2)] for player in self.player_locations}
-                trace_colors = {player: ___get_main_color(player_elements[player][2]) for player in self.player_locations}
-                player_surfaces = {player: player_elements[player][2] for player in self.player_locations}
-
-                # Show and indicate when ready
-                self.gui_running = True
-                pygame.display.flip()
-                time.sleep(0.1)
-                pygame.display.update()
-                gui_initialized_synchronizer.wait()
-                
-                # Run until the user asks to quit
-                while self.gui_running:
-                    try:
-
-                        # In multiprocessing, we check for termination in the process
-                        if self.use_multiprocessing:
-                            for event in pygame.event.get():
-                                if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE):
-                                    self.gui_running = False
-                            if not self.gui_running:
-                                break
-                        
-                        # Get turn info
-                        team_scores, new_player_locations, mud_values, new_cheese, done, turn = gui_queue.get(False)
-                        
-                        # Enter mud?
-                        for player in current_player_locations:
-                            if mud_values[player] > 0 and mud_being_crossed[player] == 0:
-                                mud_being_crossed[player] = mud_values[player] + 1
-
-                        # Choose the correct player surface
-                        for player in current_player_locations:
-                            player_x, player_y, player_neutral, player_north, player_south, player_west, player_east = player_elements[player]
-                            row, col = self._i_to_rc(current_player_locations[player])
-                            new_row, new_col = self._i_to_rc(new_player_locations[player])
-                            player_x += player_surfaces[player].get_width() / 2
-                            player_y += player_surfaces[player].get_height() / 2
-                            if new_col > col:
-                                player_surfaces[player] = player_east
-                            elif new_col < col:
-                                player_surfaces[player] = player_west
-                            elif new_row > row:
-                                player_surfaces[player] = player_south
-                            elif new_row < row:
-                                player_surfaces[player] = player_north
-                            else:
-                                player_surfaces[player] = player_neutral
-                            player_x -= player_surfaces[player].get_width() / 2
-                            player_y -= player_surfaces[player].get_height() / 2
-                            player_elements[player] = (player_x, player_y, player_neutral, player_north, player_south, player_west, player_east)
-
-                        # Move players
-                        for i in range(animation_steps):
-                        
-                            # Reset background & cheese
-                            ___show_maze()
-                            ___show_cheese(current_cheese if i != animation_steps - 1 else new_cheese)
-                            
-                            # Move player with trace
-                            for player in current_player_locations:
-                                player_x, player_y, player_neutral, player_north, player_south, player_west, player_east = player_elements[player]
-                                row, col = self._i_to_rc(current_player_locations[player])
-                                new_row, new_col = self._i_to_rc(new_player_locations[player])
-                                shift = (i + 1) * cell_size / animation_steps
-                                if mud_being_crossed[player] > 0:
-                                    shift /= mud_being_crossed[player]
-                                    shift += (mud_being_crossed[player] - mud_values[player] - 1) * cell_size / mud_being_crossed[player]
-                                next_x = player_x if col == new_col else player_x + shift if new_col > col else player_x - shift
-                                next_y = player_y if row == new_row else player_y + shift if new_row > row else player_y - shift
-                                if i == animation_steps - 1 and mud_values[player] == 0:
-                                    player_elements[player] = (next_x, next_y, player_neutral, player_north, player_south, player_west, player_east)
-                                if self.trace_length > 0:
-                                    pygame.draw.line(self.gui_screen, trace_colors[player], (next_x + player_surfaces[player].get_width() / 2, next_y + player_surfaces[player].get_height() / 2), traces[player][-1], width=trace_size)
-                                    for j in range(1, self.trace_length):
-                                        if len(traces[player]) > j:
-                                            pygame.draw.line(self.gui_screen, trace_colors[player], traces[player][-j-1], traces[player][-j], width=trace_size)
-                                    if len(traces[player]) == self.trace_length + 1:
-                                        final_segment_length = numpy.sqrt((traces[player][-1][0] - (next_x + player_surfaces[player].get_width() / 2))**2 + (traces[player][-1][1] - (next_y + player_surfaces[player].get_height() / 2))**2)
-                                        ratio = 1 - final_segment_length / cell_size
-                                        pygame.draw.line(self.gui_screen, trace_colors[player], traces[player][1], (traces[player][1][0] + ratio * (traces[player][0][0] - traces[player][1][0]), traces[player][1][1] + ratio * (traces[player][0][1] - traces[player][1][1])), width=trace_size)
-                                self.gui_screen.blit(player_surfaces[player], (next_x, next_y))
-                            
-                            # Indicate when preprocessing is over
-                            if turn == 1:
-                                self.gui_screen.blit(go_image, (main_image_x, main_image_y))
-                            
-                            # Update maze & wait for animation
-                            pygame.display.update((maze_x_offset, maze_y_offset, self.maze_width * cell_size, self.maze_height * cell_size))
-                            time.sleep(animation_time / animation_steps)
-
-                        # Exit mud?
-                        for player in current_player_locations:
-                            if mud_values[player] == 0:
-                                mud_being_crossed[player] = 0
-                            if mud_being_crossed[player] == 0:
-                                current_player_locations[player] = new_player_locations[player]
-                                player_x, player_y, _, _, _, _, _ = player_elements[player]
-                                if traces[player][-1] != (player_x + player_surfaces[player].get_width() / 2, player_y + player_surfaces[player].get_height() / 2):
-                                    traces[player].append((player_x + player_surfaces[player].get_width() / 2, player_y + player_surfaces[player].get_height() / 2))
-                                traces[player] = traces[player][-self.trace_length-1:]
-                        
-                        # Play a sound is a cheese is eaten
-                        for player in current_player_locations:
-                            if new_player_locations[player] in current_cheese and mud_being_crossed[player] == 0:
-                                ___play_sound(os.path.join("gui", "players", self.player_skins[player], "cheese_eaten.wav"), os.path.join("gui", "players", "default", "cheese_eaten.wav"))
-                        
-                        # Update score
-                        ___show_avatars()
-                        ___show_scores(team_scores)
-                        current_cheese = new_cheese
-                        
-                        # Indicate if the game is over
-                        if done:
-                            sorted_results = sorted([(team_scores[team], team) for team in team_scores], reverse=True)
-                            medals = [___surface_from_image(os.path.join("gui", "endgame", medal_name), medal_size) for medal_name in ["first.png", "second.png", "third.png", "others.png"]]
-                            for i in range(len(sorted_results)):
-                                if i > 0 and sorted_results[i][0] != sorted_results[i-1][0] and len(medals) > 1:
-                                    del medals[0]
-                                team = sorted_results[i][1]
-                                self.gui_screen.blit(medals[0], (medal_locations[team][0] - medals[0].get_width() / 2, medal_locations[team][1] - medals[0].get_height() / 3))
-                            ___play_sound(os.path.join("gui", "endgame", "game_over.wav"))
-                        pygame.display.update((0, 0, maze_x_offset, window_height))
-                        
-                    # Ignore exceptions raised due to emtpy queue
-                    except queue.Empty:
-                        pass
-                    
-                # Quit PyGame
-                if self.use_multiprocessing:
-                    pygame.quit()
-                
-            except:
-                pass
-
-        # Initialize the GUI in a different thread at turn 0
+        # Initialize the GUI in a different process at turn 0
         if turn == 0:
 
-            # In multithreading, PyGame should be initialized in the main thread
-            if not self.use_multiprocessing:
-                pygame.init()
-                if self.fullscreen:
-                    self.gui_screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
-                    pygame.display.toggle_fullscreen()
-                else:
-                    self.gui_screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
-
-            # Initialize the GUI thread
-            gui_initialized_synchronizer = self._new_barrier(2)
-            self.gui_thread_queue = self._new_queue()
-            self.gui_thread = self._new_parallel(target=__gui_thread_function, args=(gui_initialized_synchronizer, self.gui_thread_queue,))
-            self.gui_thread.start()
+            # Initialize the GUI process
+            gui_initialized_synchronizer = multiprocessing.Manager().Barrier(2)
+            self.gui_process_queue = multiprocessing.Manager().Queue()
+            self.gui_process = multiprocessing.Process(target=_gui_process_function, args=(gui_initialized_synchronizer, self.gui_process_queue, self.maze, self.maze_width, self.maze_height, self.player_locations, self.teams, self.cheese, self.nb_cheese, self.fullscreen, self.player_skins, self.render_simplified, self.trace_length, self.gui_speed, self._rc_to_i, self._i_to_rc))
+            self.gui_process.start()
             gui_initialized_synchronizer.wait()
         
-        # At each turn, send current info to the thread
+        # At each turn, send current info to the process
         else:
             new_player_locations = {player: self.player_muds[player]["target"] if self._is_in_mud(player) else self.player_locations[player] for player in self.player_locations}
             mud_values = {player: self.player_muds[player]["count"] for player in self.player_locations}
-            self.gui_thread_queue.put((self._score_per_team(), new_player_locations, mud_values, self.cheese, done, turn))
+            self.gui_process_queue.put((self._score_per_team(), new_player_locations, mud_values, self.cheese, done, turn))
         
-        # In multiprocessing, we check for termination in the main process
-        if not self.use_multiprocessing:
-            while self.gui_running:
+#####################################################################################################################################################
+################################################################## MULTIPROCESSING ##################################################################
+#####################################################################################################################################################
+
+def _player_process_function ( player:                  str,
+                               input_queue:             multiprocessing.Queue,
+                               output_queue:            multiprocessing.Queue,
+                               turn_start_synchronizer: multiprocessing.Barrier,
+                               turn_timeout_lock:       multiprocessing.Lock,
+                               turn_end_synchronizer:   multiprocessing.Barrier,
+                               preprocessing_function:  Callable[[Any, int, int, str, Dict[str, Any], Dict[str, Tuple[int, int]], Dict[str, Tuple[int, int]], Dict[str, Dict[str, int]], Dict[Tuple[int, int], int], List[str], Any], None],
+                               turn_function:           Callable[[Any, int, int, str, Dict[str, Any], Dict[str, Tuple[int, int]], Dict[str, Tuple[int, int]], Dict[str, Dict[str, int]], Dict[Tuple[int, int], int], List[str], Any], str],
+                               postprocessing_function: Callable[[Any, int, int, str, Dict[str, Any], Dict[str, Tuple[int, int]], Dict[str, Dict[str, int]], Dict[Tuple[int, int], int], List[str], Any, Dict[str, Any]], None]
+                             ) ->                       None:
+    
+    """
+        This function is executed in a separate process per player.
+        It handles the communication with the player and calls the functions given as arguments.
+        In:
+            * player:                  Name of the player.
+            * input_queue:             Queue to receive the game state.
+            * output_queue:            Queue to send the action.
+            * turn_start_synchronizer: Barrier to synchronize the start of the turn.
+            * turn_timeout_lock:       Lock to synchronize the timeout of the turn.
+            * turn_end_synchronizer:   Barrier to synchronize the end of the turn.
+            * preprocessing_function:  Function to call before the game starts.
+            * turn_function:           Function to call at each turn.
+            * postprocessing_function: Function to call after the game ends.
+        Out:
+            * None.
+    """
+
+    # We catch exceptions that may happen during the game
+    try:
+
+        # Main loop
+        memory = threading.local()
+        while True:
+            
+            # Wait for all players ready
+            turn_start_synchronizer.wait()
+            maze, maze_width, maze_height, teams, possible_actions, player_locations, player_scores, player_muds, cheese, turn, final_stats = input_queue.get()
+            duration = None
+            try:
+                
+                # Call postprocessing once the game is over
+                if final_stats is not None:
+                    action = "postprocessing_error"
+                    if postprocessing_function is not None:
+                        postprocessing_function(maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory, final_stats)
+                    action = "postprocessing"
+                    
+                # If in mud, we return immediately (main process will wait for us in all cases)
+                elif player_muds[player]["target"] is not None:
+                    action = "mud"
+                
+                # Otherwise, we ask for an action
+                else:
+                
+                    # Measure start time
+                    start = time.process_time()
+                    
+                    # Go
+                    if turn == 0:
+                        action = "preprocessing_error"
+                        if preprocessing_function is not None:
+                            preprocessing_function(maze, maze_width, maze_height, player, teams, player_locations, cheese, possible_actions, memory)
+                        action = "preprocessing"
+                    else:
+                        action = "error"
+                        a = turn_function(maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory)
+                        if a not in possible_actions:
+                            raise Exception("Invalid action %s by player %s" % (str(a), player))
+                        action = a
+                    
+                    # Set end time
+                    end_time = time.process_time()
+                    duration = end_time - start
+                        
+            # Print error message in case of a crash
+            except:
+                print("Player %s has crashed with the following error:" % (player), file=sys.stderr)
+                print(traceback.format_exc(), file=sys.stderr)
+                    
+            # Turn is over
+            with turn_timeout_lock:
+                output_queue.put((action, duration))
+            turn_end_synchronizer.wait()
+            if action.startswith("postprocessing"):
+                break
+
+    # Ignore
+    except:
+        pass
+
+#####################################################################################################################################################
+
+def _waiter_process_function ( input_queue:             multiprocessing.Queue,
+                               turn_start_synchronizer: multiprocessing.Barrier,
+                             ) ->                       None:
+    
+    """
+        This function is executed in a separate process per player.
+        It handles the timeouts of the player.
+        In:
+            * input_queue:             Queue to receive the game state.
+            * turn_start_synchronizer: Barrier to synchronize the start of the turn.
+        Out:
+            * None.
+    """
+
+    # We catch exceptions that may happen during the game
+    try:
+
+        # We just mark as ready
+        while True:
+            _ = input_queue.get()
+            turn_start_synchronizer.wait()
+
+    # Ignore
+    except:
+        pass
+
+#####################################################################################################################################################
+
+def _gui_process_function ( gui_initialized_synchronizer,
+                            gui_queue,
+                            maze,
+                            maze_width,
+                            maze_height,
+                            initial_player_locations,
+                            teams,
+                            initial_cheese,
+                            nb_cheese,
+                            fullscreen,
+                            player_skins,
+                            render_simplified,
+                            trace_length,
+                            gui_speed,
+                            rc_to_i,
+                            i_to_rc
+                          ):
+    
+    # TODO
+    
+    # We catch exceptions that may happen during the game
+    try:
+    
+        # Initialize PyGame
+        # Imports are done here to avoid multiple initializations in multiprocessing
+        os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
+        import pygame
+        import pygame.locals as pglocals
+        pygame.init()
+
+        # Start screen
+        if fullscreen:
+            gui_screen = pygame.display.set_mode((0, 0), pygame.NOFRAME)
+            pygame.display.toggle_fullscreen()
+        else:
+            gui_screen = pygame.display.set_mode((int(pygame.display.Info().current_w * 0.8), int(pygame.display.Info().current_h * 0.8)), pygame.SCALED)
+
+        # We will store elements to display
+        maze_elements = []
+        avatar_elements = []
+        player_elements = {}
+        cheese_elements = {}
+        
+        # Dimensions
+        window_width, window_height = pygame.display.get_surface().get_size()
+        cell_size = int(min(window_width / maze_width, window_height / maze_height) * 0.9)
+        background_color = (0, 0, 0)
+        cell_text_color = (50, 50, 50)
+        cell_text_offset = int(cell_size * 0.1)
+        wall_size = cell_size // 7
+        mud_text_color = (185, 155, 60)
+        corner_wall_ratio = 1.2
+        flag_size = int(cell_size * 0.4)
+        flag_x_offset = int(cell_size * 0.2)
+        flag_x_next_offset = int(cell_size * 0.07)
+        flag_y_offset = int(cell_size * 0.3)
+        game_area_width = cell_size * maze_width
+        game_area_height = cell_size * maze_height
+        maze_x_offset = int((window_width - game_area_width) * 0.9)
+        maze_y_offset = (window_height - game_area_height) // 2
+        avatars_x_offset = window_width - maze_x_offset - game_area_width
+        avatars_area_width = maze_x_offset - 2 * avatars_x_offset
+        avatars_area_height = min(game_area_height // 2, (game_area_height - (len(teams) - 1) * maze_y_offset) // len(teams))
+        avatars_area_border = 2
+        avatars_area_angle = 10
+        avatars_area_color = (255, 255, 255)
+        teams_enabled = len(teams) > 1 or len(list(teams.keys())[0]) > 0
+        if teams_enabled:
+            avatars_area_padding = avatars_area_height // 13
+            team_text_size = avatars_area_padding * 3
+            colors = distinctipy.distinctipy.get_colors(len(teams))
+            team_colors = {list(teams.keys())[i]: tuple([int(c * 255) for c in colors[i]]) for i in range(len(teams))}
+        else:
+            avatars_area_padding = avatars_area_height // 12
+            team_text_size = 0
+            avatars_area_height -= avatars_area_padding * 3
+            team_colors = {list(teams.keys())[i]: avatars_area_color for i in range(len(teams))}
+        player_avatar_size = avatars_area_padding * 3
+        player_avatar_horizontal_padding = avatars_area_padding * 4
+        player_name_text_size = avatars_area_padding
+        cheese_score_size = avatars_area_padding
+        text_size = int(cell_size * 0.17)
+        cheese_size = int(cell_size * 0.4)
+        player_size = int(cell_size * 0.5)
+        flag_border_color = (255, 255, 255)
+        flag_border_width = 1
+        player_border_width = 2
+        cheese_border_color = (255, 255, 0)
+        cheese_border_width = 1
+        cheese_score_border_color = (100, 100, 100)
+        cheese_score_border_width = 1
+        trace_size = wall_size // 2
+        animation_steps = int(max(cell_size / gui_speed, 1))
+        animation_time = 0.01
+        medal_size = min(avatars_x_offset, maze_y_offset) * 2
+        icon_size = 50
+        main_image_factor = 0.8
+        main_image_border_color = (0, 0, 0)
+        main_image_border_size = 1
+        
+        # Function to load an image with some scaling
+        # If only 2 arguments are provided, scales keeping ratio specifying the maximum size
+        # If first argument is a directory, returns a random image from it
+        already_loaded_images = {}
+        def ___surface_from_image (file_or_dir_name, target_width_or_max_size, target_height=None):
+            full_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_or_dir_name)
+            if os.path.isdir(full_path):
+                full_path = nprandom.choice(glob.glob(os.path.join(full_path, "*")))
+            loaded_image_key = str(full_path) + "_" + str(target_width_or_max_size) + "_" + str(target_height)
+            if loaded_image_key in already_loaded_images:
+                return already_loaded_images[loaded_image_key]
+            surface = pygame.image.load(full_path).convert_alpha()
+            if target_height is None:
+                max_surface_size = max(surface.get_width(), surface.get_height())
+                surface = pygame.transform.scale(surface, (surface.get_width() * target_width_or_max_size // max_surface_size, surface.get_height() * target_width_or_max_size // max_surface_size))
+            else:
+                surface = pygame.transform.scale(surface, (target_width_or_max_size, target_height))
+            already_loaded_images[loaded_image_key] = surface
+            return surface
+        
+        # Same function for text
+        def ___surface_from_text (text, target_height, text_color, original_font_size=50):
+            surface = pygame.font.SysFont(None, original_font_size).render(text, True, text_color)
+            surface = pygame.transform.scale(surface, (surface.get_width() * target_height // surface.get_height(), target_height))
+            return surface
+
+        # Function to colorize an object
+        def ___colorize (surface, color):
+            final_surface = surface.copy()
+            color_surface = pygame.Surface(final_surface.get_size()).convert_alpha()
+            color_surface.fill(color)
+            final_surface.blit(color_surface, (0, 0), special_flags=pygame.BLEND_MULT)
+            return final_surface
+            
+        # Function to add a colored border around an object
+        def ___add_color_border (surface, border_color, border_size, final_rescale=True):
+            final_surface = pygame.Surface((surface.get_width() + 2 * border_size, surface.get_height() + 2 * border_size)).convert_alpha()
+            final_surface.fill((0, 0, 0, 0))
+            mask_surface = surface.copy()
+            color_surface = pygame.Surface(mask_surface.get_size())
+            color_surface.fill((0, 0, 0, 0))
+            mask_surface.blit(color_surface, (0, 0), special_flags=pygame.BLEND_MIN)
+            color_surface.fill(border_color)
+            mask_surface.blit(color_surface, (0, 0), special_flags=pygame.BLEND_MAX)
+            for offset_x in range(-border_size, border_size + 1):
+                for offset_y in range(-border_size, border_size + 1):
+                    if numpy.linalg.norm([offset_x, offset_y]) <= border_size:
+                        final_surface.blit(mask_surface, (border_size // 2 + offset_x, border_size // 2 + offset_y))
+            final_surface.blit(surface, (border_size // 2, border_size // 2))
+            if final_rescale:
+                final_surface = pygame.transform.scale(final_surface, surface.get_size())
+            return final_surface
+
+        # Function to load the surfaces of a player
+        def ___load_player_surfaces (player_skin, scale, border_color=None, border_width=None, add_border=teams_enabled):
+            try:
+                player_neutral = ___surface_from_image(os.path.join("gui", "players", player_skin, "neutral.png"), scale)
+                player_north = ___surface_from_image(os.path.join("gui", "players", player_skin, "north.png"), scale)
+                player_south = ___surface_from_image(os.path.join("gui", "players", player_skin, "south.png"), scale)
+                player_west = ___surface_from_image(os.path.join("gui", "players", player_skin, "west.png"), scale)
+                player_east = ___surface_from_image(os.path.join("gui", "players", player_skin, "east.png"), scale)
+                if add_border:
+                    player_neutral = ___add_color_border(player_neutral, border_color, border_width)
+                    player_north = ___add_color_border(player_north, border_color, border_width)
+                    player_south = ___add_color_border(player_south, border_color, border_width)
+                    player_west = ___add_color_border(player_west, border_color, border_width)
+                    player_east = ___add_color_border(player_east, border_color, border_width)
+                return player_neutral, player_north, player_south, player_west, player_east
+            except:
+                return ___load_player_surfaces("default", scale, border_color, border_width, add_border)
+        
+        # Function to play a sound
+        def ___play_sound (file_name, alternate_file_name=None):
+            try:
+                sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_name)
+                playsound.playsound(sound_file, block=False)
+            except:
+                try:
+                    sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), alternate_file_name)
+                    playsound.playsound(sound_file, block=False)
+                except:
+                    pass
+        
+        # Function to load the avatar of a player
+        def ___load_player_avatar (player_skin, scale):
+            try:
+                return ___surface_from_image(os.path.join("gui", "players", player_skin, "avatar.png"), scale)
+            except:
+                return ___load_player_avatar("default", scale)
+        
+        # Function to get the main color of a surface
+        def ___get_main_color (surface):
+            colors = pygame.surfarray.array2d(surface)
+            values, counts = numpy.unique(colors, return_counts=True)
+            argmaxes = numpy.argpartition(-counts, kth=2)[:2]
+            max_occurrences = values[argmaxes]
+            main_color = surface.unmap_rgb(max_occurrences[0])
+            if main_color == (0, 0, 0, 0):
+                main_color = surface.unmap_rgb(max_occurrences[1])
+            return main_color
+
+        # Function to check if the given pair is accessible
+        def ___cell_is_in_maze (row, col):
+            in_maze = 0 <= row < maze_height and 0 <= col < maze_width and rc_to_i(row, col, maze_width) in maze
+            return in_maze
+        
+        # Set window icon
+        icon = ___surface_from_image(os.path.join("gui", "icon", "pyrat.png"), icon_size)
+        pygame.display.set_icon(icon)
+        
+        # Set background color
+        pygame.draw.rect(gui_screen, background_color, pygame.Rect(0, 0, window_width, window_height))
+        
+        # Add cells
+        for row in range(maze_height):
+            for col in range(maze_width):
+                if ___cell_is_in_maze(row, col):
+                    cell = ___surface_from_image(os.path.join("gui", "ground"), cell_size, cell_size)
+                    cell = pygame.transform.rotate(cell, nprandom.randint(4) * 90)
+                    cell = pygame.transform.flip(cell, bool(nprandom.randint(2)), bool(nprandom.randint(2)))
+                    cell_x = maze_x_offset + col * cell_size
+                    cell_y = maze_y_offset + row * cell_size
+                    maze_elements.append((cell_x, cell_y, cell))
+                    
+        # Add mud
+        mud = ___surface_from_image(os.path.join("gui", "mud", "mud.png"), cell_size)
+        for row in range(maze_height):
+            for col in range(maze_width):
+                if ___cell_is_in_maze(row, col):
+                    if ___cell_is_in_maze(row, col - 1):
+                        if rc_to_i(row, col - 1, maze_width) in maze[rc_to_i(row, col, maze_width)]:
+                            if maze[rc_to_i(row, col, maze_width)][rc_to_i(row, col - 1, maze_width)] > 1:
+                                mud_x = maze_x_offset + col * cell_size - mud.get_width() // 2
+                                mud_y = maze_y_offset + row * cell_size
+                                maze_elements.append((mud_x, mud_y, mud))
+                                if not render_simplified:
+                                    weight_text = ___surface_from_text(str(maze[rc_to_i(row, col, maze_width)][rc_to_i(row, col - 1, maze_width)]), text_size, mud_text_color)
+                                    weight_text_x = maze_x_offset + col * cell_size - weight_text.get_width() // 2
+                                    weight_text_y = maze_y_offset + row * cell_size + (cell_size - weight_text.get_height()) // 2
+                                    maze_elements.append((weight_text_x, weight_text_y, weight_text))
+                    if ___cell_is_in_maze(row - 1, col):
+                        if rc_to_i(row - 1, col, maze_width) in maze[rc_to_i(row, col, maze_width)]:
+                            if maze[rc_to_i(row, col, maze_width)][rc_to_i(row - 1, col, maze_width)] > 1:
+                                mud_horizontal = pygame.transform.rotate(mud, 90)
+                                mud_x = maze_x_offset + col * cell_size
+                                mud_y = maze_y_offset + row * cell_size - mud.get_width() // 2
+                                maze_elements.append((mud_x, mud_y, mud_horizontal))
+                                if not render_simplified:
+                                    weight_text = ___surface_from_text(str(maze[rc_to_i(row, col, maze_width)][rc_to_i(row - 1, col, maze_width)]), text_size, mud_text_color)
+                                    weight_text_x = maze_x_offset + col * cell_size + (cell_size - weight_text.get_width()) // 2
+                                    weight_text_y = maze_y_offset + row * cell_size - weight_text.get_height() // 2
+                                    maze_elements.append((weight_text_x, weight_text_y, weight_text))
+
+        # Add cell numbers
+        if not render_simplified:
+            for row in range(maze_height):
+                for col in range(maze_width):
+                    if ___cell_is_in_maze(row, col):
+                        cell_text = ___surface_from_text(str(rc_to_i(row, col, maze_width)), text_size, cell_text_color)
+                        cell_text_x = maze_x_offset + col * cell_size + cell_text_offset
+                        cell_text_y = maze_y_offset + row * cell_size + cell_text_offset
+                        maze_elements.append((cell_text_x, cell_text_y, cell_text))
+        
+        # Add walls
+        walls = []
+        wall = ___surface_from_image(os.path.join("gui", "wall", "wall.png"), cell_size)
+        for row in range(maze_height + 1):
+            for col in range(maze_width + 1):
+                case_outside_to_inside = not ___cell_is_in_maze(row, col) and ___cell_is_in_maze(row, col - 1)
+                case_inside_to_outside = ___cell_is_in_maze(row, col) and not ___cell_is_in_maze(row, col - 1)
+                case_inside_to_inside = ___cell_is_in_maze(row, col) and ___cell_is_in_maze(row, col - 1) and rc_to_i(row, col - 1, maze_width) not in maze[rc_to_i(row, col, maze_width)]
+                if case_outside_to_inside or case_inside_to_outside or case_inside_to_inside:
+                    wall_x = maze_x_offset + col * cell_size - wall.get_width() // 2
+                    wall_y = maze_y_offset + row * cell_size
+                    maze_elements.append((wall_x, wall_y, wall))
+                    walls.append((row, col, row, col - 1))
+                case_outside_to_inside = not ___cell_is_in_maze(row, col) and ___cell_is_in_maze(row - 1, col)
+                case_inside_to_outside = ___cell_is_in_maze(row, col) and not ___cell_is_in_maze(row - 1, col)
+                case_inside_to_inside = ___cell_is_in_maze(row, col) and ___cell_is_in_maze(row - 1, col) and rc_to_i(row - 1, col, maze_width) not in maze[rc_to_i(row, col, maze_width)]
+                if case_outside_to_inside or case_inside_to_outside or case_inside_to_inside:
+                    wall_horizontal = pygame.transform.rotate(wall, 90)
+                    wall_x = maze_x_offset + col * cell_size
+                    wall_y = maze_y_offset + row * cell_size - wall.get_width() // 2
+                    maze_elements.append((wall_x, wall_y, wall_horizontal))
+                    walls.append((row, col, row - 1, col))
+            
+        # Add corners
+        corner = ___surface_from_image(os.path.join("gui", "wall", "corner.png"), int(wall.get_width() * corner_wall_ratio), int(wall.get_width() * corner_wall_ratio))
+        for row, col, neighbor_row, neighbor_col in walls:
+            if col != neighbor_col:
+                corner_x = maze_x_offset + col * cell_size - corner.get_width() // 2
+                if (row - 1, col, neighbor_row - 1, neighbor_col) not in walls or ((neighbor_row, neighbor_col, neighbor_row - 1, neighbor_col) in walls and (row, col, row - 1, col) in walls and (row - 1, col, neighbor_row - 1, neighbor_col) in walls):
+                    corner_y = maze_y_offset + row * cell_size - corner.get_width() // 2
+                    maze_elements.append((corner_x, corner_y, corner))
+                if (row + 1, col, neighbor_row + 1, neighbor_col) not in walls:
+                    corner_y = maze_y_offset + (row + 1) * cell_size - corner.get_width() // 2
+                    maze_elements.append((corner_x, corner_y, corner))
+            if row != neighbor_row:
+                corner_y = maze_y_offset + row * cell_size - corner.get_width() // 2
+                if (row, col - 1, neighbor_row, neighbor_col - 1) not in walls:
+                    corner_x = maze_x_offset + col * cell_size - corner.get_width() // 2
+                    maze_elements.append((corner_x, corner_y, corner))
+                if (row, col + 1, neighbor_row, neighbor_col + 1) not in walls:
+                    corner_x = maze_x_offset + (col + 1) * cell_size - corner.get_width() // 2
+                    maze_elements.append((corner_x, corner_y, corner))
+        
+        # Add flags
+        if not render_simplified:
+            cells_with_flags = {cell: {} for cell in initial_player_locations.values()}
+            for player in initial_player_locations:
+                team = [team for team in teams if player in teams[team]][0]
+                if team not in cells_with_flags[initial_player_locations[player]]:
+                    cells_with_flags[initial_player_locations[player]][team] = 0
+                cells_with_flags[initial_player_locations[player]][team] += 1
+            flag = ___surface_from_image(os.path.join("gui", "flag", "flag.png"), flag_size)
+            max_teams_in_cells = max([len(team) for team in cells_with_flags.values()])
+            max_players_in_cells = max([cells_with_flags[cell][team] for cell in cells_with_flags for team in cells_with_flags[cell]])
+            for cell in cells_with_flags:
+                row, col = i_to_rc(cell, maze_width)
+                for i_team in range(len(cells_with_flags[cell])):
+                    team = list(cells_with_flags[cell].keys())[i_team]
+                    flag_colored = ___colorize(flag, team_colors[team])
+                    flag_colored = ___add_color_border(flag_colored, flag_border_color, flag_border_width)
+                    for i_player in range(cells_with_flags[cell][team]):
+                        flag_x = maze_x_offset + (col + 1) * cell_size - flag_x_offset - i_player * min(flag_x_next_offset, (cell_size - flag_x_offset) / (max_players_in_cells + 1))
+                        flag_y = maze_y_offset + row * cell_size - flag.get_height() + flag_y_offset + i_team * min(flag_y_offset, (cell_size - flag_y_offset) / (max_teams_in_cells + 1))
+                        maze_elements.append((flag_x, flag_y, flag_colored))
+
+        # Add cheese
+        cheese = ___surface_from_image(os.path.join("gui", "cheese", "cheese.png"), cheese_size)
+        cheese = ___add_color_border(cheese, cheese_border_color, cheese_border_width)
+        for c in initial_cheese:
+            row, col = i_to_rc(c, maze_width)
+            cheese_x = maze_x_offset + col * cell_size + (cell_size - cheese.get_width()) // 2
+            cheese_y = maze_y_offset + row * cell_size + (cell_size - cheese.get_height()) // 2
+            cheese_elements[c] = (cheese_x, cheese_y, cheese)
+        
+        # Add players
+        for player_name in initial_player_locations:
+            team = [team for team in teams if player_name in teams[team]][0]
+            player_neutral, player_north, player_south, player_west, player_east = ___load_player_surfaces(player_skins[player_name], player_size, team_colors[team], player_border_width)
+            row, col = i_to_rc(initial_player_locations[player_name], maze_width)
+            player_x = maze_x_offset + col * cell_size + (cell_size - player_neutral.get_width()) // 2
+            player_y = maze_y_offset + row * cell_size + (cell_size - player_neutral.get_height()) // 2
+            player_elements[player_name] = (player_x, player_y, player_neutral, player_north, player_south, player_west, player_east)
+        
+        # Add avatars area
+        score_locations = {}
+        medal_locations = {}
+        for i in range(len(teams)):
+        
+            # Box
+            team = list(teams.keys())[i]
+            team_background = pygame.Surface((avatars_area_width, avatars_area_height))
+            pygame.draw.rect(team_background, background_color, pygame.Rect(0, 0, avatars_area_width, avatars_area_height))
+            pygame.draw.rect(team_background, team_colors[team], pygame.Rect(0, 0, avatars_area_width, avatars_area_height), avatars_area_border, avatars_area_angle)
+            team_background_x = avatars_x_offset
+            team_background_y = (1 + i) * maze_y_offset + i * avatars_area_height if len(teams) > 1 else (window_height - avatars_area_height) // 2
+            avatar_elements.append((team_background_x, team_background_y, team_background))
+            medal_locations[team] = (team_background_x + avatars_area_width, team_background_y)
+            
+            # Team name
+            team_text = ___surface_from_text(team, team_text_size, team_colors[team])
+            if team_text.get_width() > avatars_area_width - 2 * avatars_area_padding:
+                ratio = (avatars_area_width - 2 * avatars_area_padding) / team_text.get_width()
+                team_text = pygame.transform.scale(team_text, (int(team_text.get_width() * ratio), int(team_text.get_height() * ratio)))
+            team_text_x = avatars_x_offset + (avatars_area_width - team_text.get_width()) // 2
+            team_text_y = team_background_y + avatars_area_padding + (team_text_size - team_text.get_height()) // 2
+            if not teams_enabled:
+                team_text_size = -avatars_area_padding
+            avatar_elements.append((team_text_x, team_text_y, team_text))
+            
+            # Players images
+            players = []
+            for j in range(len(teams[team])):
+                player_name = teams[team][j]
+                player_avatar = ___load_player_avatar(player_skins[player_name], player_avatar_size)
+                players.append((player_name, player_avatar))
+            avatar_area = pygame.Surface((2 * avatars_area_padding + sum([player[1].get_width() for player in players]) + player_avatar_horizontal_padding * (len(players) - 1), player_avatar_size))
+            pygame.draw.rect(avatar_area, background_color, pygame.Rect(0, 0, avatar_area.get_width(), avatar_area.get_height()))
+            player_x = avatars_area_padding
+            centers = []
+            for player_name, player in players:
+                avatar_area.blit(player, (player_x, 0))
+                centers.append(player_x + player.get_width() // 2)
+                player_x += player.get_width() + player_avatar_horizontal_padding
+            if avatar_area.get_width() > avatars_area_width - 2 * avatars_area_padding:
+                ratio = (avatars_area_width - 2 * avatars_area_padding) / avatar_area.get_width()
+                centers = [center * ratio for center in centers]
+                avatar_area = pygame.transform.scale(avatar_area, (int(avatar_area.get_width() * ratio), int(avatar_area.get_height() * ratio)))
+            avatar_area_x = avatars_x_offset + (avatars_area_width - avatar_area.get_width()) // 2
+            avatar_area_y = team_background_y + 2 * avatars_area_padding + team_text_size + (player_avatar_size - avatar_area.get_height()) // 2
+            avatar_elements.append((avatar_area_x, avatar_area_y, avatar_area))
+
+            # Players names
+            for j in range(len(teams[team])):
+                player_name = teams[team][j]
+                while True:
+                    player_name_text = ___surface_from_text(player_name, player_name_text_size, avatars_area_color)
+                    if player_name_text.get_width() > (avatars_area_width - 2 * avatars_area_padding) / len(teams[team]):
+                        player_name = player_name[:-2] + "."
+                    else:
+                        break
+                player_name_text_x = avatar_area_x + centers[j] - player_name_text.get_width() // 2
+                player_name_text_y = team_background_y + 3 * avatars_area_padding + team_text_size + player_avatar_size + (player_name_text_size - player_name_text.get_height()) // 2
+                avatar_elements.append((player_name_text_x, player_name_text_y, player_name_text))
+        
+            # Score locations
+            cheese_missing = ___surface_from_image(os.path.join("gui", "cheese", "cheese_missing.png"), cheese_score_size)
+            score_x_offset = avatars_x_offset + avatars_area_padding
+            score_margin = avatars_area_width - 2 * avatars_area_padding - cheese_missing.get_width()
+            if nb_cheese > 1:
+                score_margin /= (nb_cheese - 1)
+            score_margin = min(score_margin, cheese_missing.get_width() * 2)
+            estimated_width = cheese_missing.get_width() + (nb_cheese - 1) * score_margin
+            if estimated_width < avatars_area_width - 2 * avatars_area_padding:
+                score_x_offset += (avatars_area_width - 2 * avatars_area_padding - estimated_width) / 2
+            score_y_offset = team_background_y + 4 * avatars_area_padding + team_text_size + player_avatar_size + player_name_text_size
+            score_locations[team] = (score_x_offset, score_margin, score_y_offset)
+
+        # Show maze
+        def ___show_maze ():
+            pygame.draw.rect(gui_screen, background_color, pygame.Rect(maze_x_offset, maze_y_offset, game_area_width, game_area_height))
+            for surface_x, surface_y, surface in maze_elements:
+                gui_screen.blit(surface, (surface_x, surface_y))
+        ___show_maze()
+        
+        # Show cheese
+        def ___show_cheese (cheese):
+            for c in cheese:
+                cheese_x, cheese_y, surface = cheese_elements[c]
+                gui_screen.blit(surface, (cheese_x, cheese_y))
+        ___show_cheese(initial_cheese)
+        
+        # Show_players at initial locations
+        for p in player_elements:
+            player_x, player_y, player_neutral, _, _ , _, _ = player_elements[p]
+            gui_screen.blit(player_neutral, (player_x, player_y))
+        
+        # Show avatars
+        def ___show_avatars ():
+            for surface_x, surface_y, surface in avatar_elements:
+                gui_screen.blit(surface, (surface_x, surface_y))
+        ___show_avatars()
+        
+        # Show scores
+        def ___show_scores (team_scores):
+            cheese_missing = ___surface_from_image(os.path.join("gui", "cheese", "cheese_missing.png"), cheese_score_size)
+            cheese_missing = ___add_color_border(cheese_missing, cheese_score_border_color, cheese_score_border_width)
+            cheese_eaten = ___surface_from_image(os.path.join("gui", "cheese", "cheese_eaten.png"), cheese_score_size)
+            cheese_eaten = ___add_color_border(cheese_eaten, cheese_score_border_color, cheese_score_border_width)
+            for team in score_locations:
+                score_x_offset, score_margin, score_y_offset = score_locations[team]
+                for i in range(int(team_scores[team])):
+                    gui_screen.blit(cheese_eaten, (score_x_offset + i * score_margin, score_y_offset))
+                if int(team_scores[team]) != team_scores[team]:
+                    cheese_partial = ___surface_from_image(os.path.join("gui", "cheese", "cheese_eaten.png"), cheese_score_size)
+                    cheese_partial = ___colorize(cheese_partial, [(team_scores[team] - int(team_scores[team])) * 255] * 3)
+                    cheese_partial = ___add_color_border(cheese_partial, cheese_score_border_color, cheese_score_border_width)
+                    gui_screen.blit(cheese_partial, (score_x_offset + int(team_scores[team]) * score_margin, score_y_offset))
+                for j in range(int(numpy.ceil(team_scores[team])), nb_cheese):
+                    gui_screen.blit(cheese_missing, (score_x_offset + j * score_margin, score_y_offset))
+        initial_scores = {team: 0 for team in teams}
+        ___show_scores(initial_scores)
+        
+        # Show preprocessing message
+        preprocessing_image = ___surface_from_image(os.path.join("gui", "drawings", "pyrat_preprocessing.png"), int(min(game_area_width, game_area_height) * main_image_factor))
+        preprocessing_image = ___add_color_border(preprocessing_image, main_image_border_color, main_image_border_size)
+        go_image = ___surface_from_image(os.path.join("gui", "drawings", "pyrat_go.png"), int(min(game_area_width, game_area_height) * main_image_factor))
+        go_image = ___add_color_border(go_image, main_image_border_color, main_image_border_size)
+        main_image_x = maze_x_offset + (game_area_width - preprocessing_image.get_width()) / 2
+        main_image_y = maze_y_offset + (game_area_height - preprocessing_image.get_height()) / 2
+        gui_screen.blit(preprocessing_image, (main_image_x, main_image_y))
+        
+        # Prepare useful variables
+        current_player_locations = initial_player_locations.copy()
+        current_cheese = initial_cheese.copy()
+        mud_being_crossed = {player: 0 for player in initial_player_locations}
+        traces = {player: [(player_elements[player][0] + player_elements[player][2].get_width() / 2, player_elements[player][1] + player_elements[player][2].get_height() / 2)] for player in initial_player_locations}
+        trace_colors = {player: ___get_main_color(player_elements[player][2]) for player in initial_player_locations}
+        player_surfaces = {player: player_elements[player][2] for player in initial_player_locations}
+
+        # Show and indicate when ready
+        gui_running = True
+        pygame.display.flip()
+        time.sleep(0.1)
+        pygame.display.update()
+        gui_initialized_synchronizer.wait()
+        
+        # Run until the user asks to quit
+        while gui_running:
+            try:
+
+                # IWe check for termination
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT or (event.type == pglocals.KEYDOWN and event.key == pglocals.K_ESCAPE):
-                        self.gui_running = False
-                        pygame.quit()
-                if not done:
+                        gui_running = False
+                if not gui_running:
                     break
-                time.sleep(0.5)
+                
+                # Get turn info
+                team_scores, new_player_locations, mud_values, new_cheese, done, turn = gui_queue.get(False)
+                
+                # Enter mud?
+                for player in current_player_locations:
+                    if mud_values[player] > 0 and mud_being_crossed[player] == 0:
+                        mud_being_crossed[player] = mud_values[player] + 1
+
+                # Choose the correct player surface
+                for player in current_player_locations:
+                    player_x, player_y, player_neutral, player_north, player_south, player_west, player_east = player_elements[player]
+                    row, col = i_to_rc(current_player_locations[player], maze_width)
+                    new_row, new_col = i_to_rc(new_player_locations[player], maze_width)
+                    player_x += player_surfaces[player].get_width() / 2
+                    player_y += player_surfaces[player].get_height() / 2
+                    if new_col > col:
+                        player_surfaces[player] = player_east
+                    elif new_col < col:
+                        player_surfaces[player] = player_west
+                    elif new_row > row:
+                        player_surfaces[player] = player_south
+                    elif new_row < row:
+                        player_surfaces[player] = player_north
+                    else:
+                        player_surfaces[player] = player_neutral
+                    player_x -= player_surfaces[player].get_width() / 2
+                    player_y -= player_surfaces[player].get_height() / 2
+                    player_elements[player] = (player_x, player_y, player_neutral, player_north, player_south, player_west, player_east)
+
+                # Move players
+                for i in range(animation_steps):
+                
+                    # Reset background & cheese
+                    ___show_maze()
+                    ___show_cheese(current_cheese if i != animation_steps - 1 else new_cheese)
+                    
+                    # Move player with trace
+                    for player in current_player_locations:
+                        player_x, player_y, player_neutral, player_north, player_south, player_west, player_east = player_elements[player]
+                        row, col = i_to_rc(current_player_locations[player], maze_width)
+                        new_row, new_col = i_to_rc(new_player_locations[player], maze_width)
+                        shift = (i + 1) * cell_size / animation_steps
+                        if mud_being_crossed[player] > 0:
+                            shift /= mud_being_crossed[player]
+                            shift += (mud_being_crossed[player] - mud_values[player] - 1) * cell_size / mud_being_crossed[player]
+                        next_x = player_x if col == new_col else player_x + shift if new_col > col else player_x - shift
+                        next_y = player_y if row == new_row else player_y + shift if new_row > row else player_y - shift
+                        if i == animation_steps - 1 and mud_values[player] == 0:
+                            player_elements[player] = (next_x, next_y, player_neutral, player_north, player_south, player_west, player_east)
+                        if trace_length > 0:
+                            pygame.draw.line(gui_screen, trace_colors[player], (next_x + player_surfaces[player].get_width() / 2, next_y + player_surfaces[player].get_height() / 2), traces[player][-1], width=trace_size)
+                            for j in range(1, trace_length):
+                                if len(traces[player]) > j:
+                                    pygame.draw.line(gui_screen, trace_colors[player], traces[player][-j-1], traces[player][-j], width=trace_size)
+                            if len(traces[player]) == trace_length + 1:
+                                final_segment_length = numpy.sqrt((traces[player][-1][0] - (next_x + player_surfaces[player].get_width() / 2))**2 + (traces[player][-1][1] - (next_y + player_surfaces[player].get_height() / 2))**2)
+                                ratio = 1 - final_segment_length / cell_size
+                                pygame.draw.line(gui_screen, trace_colors[player], traces[player][1], (traces[player][1][0] + ratio * (traces[player][0][0] - traces[player][1][0]), traces[player][1][1] + ratio * (traces[player][0][1] - traces[player][1][1])), width=trace_size)
+                        gui_screen.blit(player_surfaces[player], (next_x, next_y))
+                    
+                    # Indicate when preprocessing is over
+                    if turn == 1:
+                        gui_screen.blit(go_image, (main_image_x, main_image_y))
+                    
+                    # Update maze & wait for animation
+                    pygame.display.update((maze_x_offset, maze_y_offset, maze_width * cell_size, maze_height * cell_size))
+                    time.sleep(animation_time / animation_steps)
+
+                # Exit mud?
+                for player in current_player_locations:
+                    if mud_values[player] == 0:
+                        mud_being_crossed[player] = 0
+                    if mud_being_crossed[player] == 0:
+                        current_player_locations[player] = new_player_locations[player]
+                        player_x, player_y, _, _, _, _, _ = player_elements[player]
+                        if traces[player][-1] != (player_x + player_surfaces[player].get_width() / 2, player_y + player_surfaces[player].get_height() / 2):
+                            traces[player].append((player_x + player_surfaces[player].get_width() / 2, player_y + player_surfaces[player].get_height() / 2))
+                        traces[player] = traces[player][-trace_length-1:]
+                
+                # Play a sound is a cheese is eaten
+                for player in current_player_locations:
+                    if new_player_locations[player] in current_cheese and mud_being_crossed[player] == 0:
+                        ___play_sound(os.path.join("gui", "players", player_skins[player], "cheese_eaten.wav"), os.path.join("gui", "players", "default", "cheese_eaten.wav"))
+                
+                # Update score
+                ___show_avatars()
+                ___show_scores(team_scores)
+                current_cheese = new_cheese
+                
+                # Indicate if the game is over
+                if done:
+                    sorted_results = sorted([(team_scores[team], team) for team in team_scores], reverse=True)
+                    medals = [___surface_from_image(os.path.join("gui", "endgame", medal_name), medal_size) for medal_name in ["first.png", "second.png", "third.png", "others.png"]]
+                    for i in range(len(sorted_results)):
+                        if i > 0 and sorted_results[i][0] != sorted_results[i-1][0] and len(medals) > 1:
+                            del medals[0]
+                        team = sorted_results[i][1]
+                        gui_screen.blit(medals[0], (medal_locations[team][0] - medals[0].get_width() / 2, medal_locations[team][1] - medals[0].get_height() / 3))
+                    ___play_sound(os.path.join("gui", "endgame", "game_over.wav"))
+                pygame.display.update((0, 0, maze_x_offset, window_height))
+                
+            # Ignore exceptions raised due to emtpy queue
+            except queue.Empty:
+                pass
+            
+        # Quit PyGame
+        pygame.quit()
         
+    # Ignore
+    except:
+        pass
+
 #####################################################################################################################################################
 #####################################################################################################################################################
