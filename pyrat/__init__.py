@@ -974,8 +974,8 @@ class PyRat ():
 
         # Function to compute the difference between two cells for each dimension.
         def __coords_difference (i1, i2):
-            row1, col1 = self._i_to_rc(i1)
-            row2, col2 = self._i_to_rc(i2)
+            row1, col1 = self._i_to_rc(i1, self.maze_width)
+            row2, col2 = self._i_to_rc(i2, self.maze_width)
             row_diff = row1 - row2
             col_diff = col1 - col2
             return row_diff, col_diff
