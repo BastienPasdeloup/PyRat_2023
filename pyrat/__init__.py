@@ -1011,7 +1011,7 @@ class PyRat ():
         # Consider cells in lexicographic order
         environment_str += "\n" + wall * (self.maze_width * (cell_width + 1) + 1)
         for row in range(self.maze_height):
-            players_in_row = [self.player_locations[player] for player in self.player_locations if self._i_to_rc(self.player_locations[player])[0] == row]
+            players_in_row = [self.player_locations[player] for player in self.player_locations if self._i_to_rc(self.player_locations[player], self.maze_width)[0] == row]
             cell_height = max([players_in_row.count(cell) for cell in players_in_row] + [max_weight_len]) + 2
             environment_str += "\n"
             for subrow in range(cell_height):
