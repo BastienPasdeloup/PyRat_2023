@@ -422,7 +422,7 @@ class PyRat ():
                 config["fixed_cheese"] = self.fixed_cheese
             else:
                 config["nb_cheese"] = self.nb_cheese
-                config["random_seed_cheese"] = self.game_random_seed_cheese
+                config["random_seed_cheese"] = self.random_seed_cheese
             
             # Create the players' file, forcing players to their initial locations
             output_file_name = os.path.join(self.save_path, datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f.py"))
