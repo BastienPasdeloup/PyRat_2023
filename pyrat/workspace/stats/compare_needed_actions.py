@@ -79,7 +79,10 @@ def run_one_game ( seed:    int,
     """
     
     # Map the functions to the character
-    players = [{"name": program.__name__, "preprocessing_function": program.preprocessing if "preprocessing" in dir(program) else None, "turn_function": program.turn}]
+    players = [{"name": program.__name__,
+                "preprocessing_function": program.preprocessing if "preprocessing" in dir(program) else None,
+                "turn_function": program.turn,
+                "postprocessing_function": program.postprocessing if "postprocessing" in dir(program) else None}]
 
     # Customize the game elements
     config = {"maze_width": MAZE_WIDTH,

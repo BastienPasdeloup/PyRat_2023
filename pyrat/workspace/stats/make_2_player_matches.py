@@ -84,7 +84,7 @@ def run_one_game ( seed:      int,
                     "team": "2",
                     "preprocessing_function": program_2.preprocessing if "preprocessing" in dir(program_2) else None,
                     "turn_function": program_2.turn,
-                    "postprocessing_function": program_2.postprocessing if "postprocessing" in dir(program_2) else None}}]
+                    "postprocessing_function": program_2.postprocessing if "postprocessing" in dir(program_2) else None}]
 
     # Customize the game elements
     config = {"maze_width": MAZE_WIDTH,
