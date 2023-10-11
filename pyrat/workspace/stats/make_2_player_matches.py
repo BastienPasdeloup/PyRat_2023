@@ -49,6 +49,7 @@ MAZE_HEIGHT = 29
 MUD_PERCENTAGE = 10.0
 WALL_PERCENTAGE = 40.0
 MUD_RANGE = [2, 10]
+CELL_PERCENTAGE = 80.0
 NB_CHEESE = 1
 TURN_TIME = 0.0
 PREPROCESSING_TIME = 0.0
@@ -74,8 +75,16 @@ def run_one_game ( seed:      int,
     """
 
     # Map the functions to the character
-    players = [{"name": program_1.__name__, "team": "1", "preprocessing_function": program_1.preprocessing if "preprocessing" in dir(program_1) else None, "turn_function": program_1.turn},
-               {"name": program_2.__name__, "team": "2", "preprocessing_function": program_2.preprocessing if "preprocessing" in dir(program_2) else None, "turn_function": program_2.turn}]
+    players = [{"name": program_1.__name__,
+                    "team": "1",
+                    "preprocessing_function": program_1.preprocessing if "preprocessing" in dir(program_1) else None,
+                    "turn_function": program_1.turn,
+                    "postprocessing_function": program_1.postprocessing if "postprocessing" in dir(program_1) else None},
+               {"name": program_2.__name__,
+                    "team": "2",
+                    "preprocessing_function": program_2.preprocessing if "preprocessing" in dir(program_2) else None,
+                    "turn_function": program_2.turn,
+                    "postprocessing_function": program_2.postprocessing if "postprocessing" in dir(program_2) else None}}]
 
     # Customize the game elements
     config = {"maze_width": MAZE_WIDTH,
@@ -83,6 +92,7 @@ def run_one_game ( seed:      int,
               "mud_percentage": MUD_PERCENTAGE,
               "mud_range": MUD_RANGE,
               "wall_percentage": WALL_PERCENTAGE,
+              "cell_percentage": CELL_PERCENTAGE,
               "nb_cheese": NB_CHEESE,
               "render_mode": "no_rendering",
               "preprocessing_time": PREPROCESSING_TIME,
