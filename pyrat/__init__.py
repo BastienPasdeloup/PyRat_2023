@@ -74,7 +74,7 @@ parser.add_argument("--fullscreen",          action="store_true",               
 parser.add_argument("--trace_length",        type=int,                                                   default=0,            help="Maximum length of the trace to display when players are moving (GUI rendering only)")
 
 # Parse the arguments into a global variable
-args = parser.parse_args()
+args, unknown_args = parser.parse_known_args()
 
 #####################################################################################################################################################
 ################################################################## GAME DEFINITION ##################################################################
