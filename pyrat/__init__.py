@@ -423,12 +423,16 @@ class PyRat ():
                 config["nb_cheese"] = self.nb_cheese
                 config["random_seed_cheese"] = self.random_seed_cheese
             
+            # Create the saves directory if needed
+            if not os.path.exists(self.save_path):
+                os.makedirs(self.save_path)
+
             # Create the players' file, forcing players to their initial locations
             output_file_name = os.path.join(self.save_path, datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f.py"))
             with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "save_template.py"), "r") as save_template_file:
                 save_template = save_template_file.read()
                 save_template = save_template.replace("{ACTIONS}", str(self.actions_history).replace("], '", "],\n                                 '"))
-                save_template = save_template.replace("{PLAYERS}", str([{"\"name\": \"%s\", \"team\": \"%s\", \"skin\": \"%s\", \"turn_function\": turn, \"location\": %d" % (player, [team for team in self.teams if player in self.teams[team]][0], self.player_skins[player], self.player_initial_locations[player])} for player in self.player_locations]).replace("'", "").replace("},", "},\n              "))
+                save_template = save_template.replace("{PLAYERS}", str([{"\"name\": \"%s\", \"team\": \"%s\", \"skin\": \"%s\", \"preprocessing_function\": preprocessing, \"turn_function\": turn, \"location\": %d" % (player, [team for team in self.teams if player in self.teams[team]][0], self.player_skins[player], self.player_initial_locations[player])} for player in self.player_locations]).replace("'", "").replace("},", "},\n              "))
                 save_template = save_template.replace("{CONFIG}", str(config).replace(", '", ",\n              '"))
                 with open(output_file_name, "w") as output_file:
                     print(save_template, file=output_file)
@@ -1267,6 +1271,7 @@ def _gui_process_function ( gui_initialized_synchronizer,
         import pygame
         import pygame.locals as pglocals
         pygame.init()
+        pygame.mixer.init()
 
         # Start screen
         if fullscreen:
@@ -1411,19 +1416,12 @@ def _gui_process_function ( gui_initialized_synchronizer,
         
         # Function to play a sound
         def ___play_sound (file_name, alternate_file_name=None):
-            try:
-                sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_name)
-                pygame.mixer.init()
-                pygame.mixer.music.load(sound_file)
-                pygame.mixer.music.play()
-            except:
-                try:
-                    sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), alternate_file_name)
-                    pygame.mixer.init()
-                    pygame.mixer.music.load(sound_file)
-                    pygame.mixer.music.play()
-                except:
-                    pass
+            sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), file_name)
+            if not os.path.exists(sound_file):
+                sound_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), alternate_file_name)
+            sound = pygame.mixer.Sound(sound_file)
+            channel = pygame.mixer.find_channel()
+            channel.play(sound)
         
         # Function to load the avatar of a player
         def ___load_player_avatar (player_skin, scale):
