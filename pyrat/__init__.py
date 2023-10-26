@@ -215,6 +215,7 @@ class PyRat ():
         for player in players:
             self._register_player(**player)
         self.cheese = self._distribute_cheese()
+        self.initial_cheese = self.cheese.copy()
 
     #############################################################################################################################################
     #                                                               STATIC METHODS                                                              #
@@ -401,32 +402,15 @@ class PyRat ():
         # We save the game if asked
         if self.save_game:
             
-            # Generic config stuff we want to save
-            config = {"synchronous": True, "continue_on_error": False}
-            
-            # We save the maze as it was given (fixed or random)
-            if self.fixed_maze is not None:
-                config["fixed_maze"] = self.fixed_maze
-            else:
-                config["maze_width"] = self.maze_width
-                config["maze_height"] = self.maze_height
-                config["random_seed_maze"] = self.random_seed_maze
-                config["cell_percentage"] = self.cell_percentage
-                config["wall_percentage"] = self.wall_percentage
-                config["mud_percentage"] = self.mud_percentage
-                config["mud_range"] = self.mud_range
-            
-            # Same for the cheese
-            if self.fixed_cheese is not None:
-                config["fixed_cheese"] = self.fixed_cheese
-            else:
-                config["nb_cheese"] = self.nb_cheese
-                config["random_seed_cheese"] = self.random_seed_cheese
-            
             # Create the saves directory if needed
             if not os.path.exists(self.save_path):
                 os.makedirs(self.save_path)
 
+            # Prepare the config dictionary
+            config = {"synchronous": True,
+                      "fixed_maze": self.maze,
+                      "fixed_cheese": self.initial_cheese}
+            
             # Create the players' file, forcing players to their initial locations
             output_file_name = os.path.join(self.save_path, datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f.py"))
             with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "save_template.py"), "r") as save_template_file:
