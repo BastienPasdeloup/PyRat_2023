@@ -22,7 +22,7 @@ def get_vertices ( graph: Union[numpy.ndarray, Dict[int, Dict[int, int]]]
                  ) ->     List[int]:
 
     """
-        Fuction to return the list of all vertices in a graph, except those with no neighbors.
+        Function to return the list of all vertices in a graph, except those with no neighbors.
         Here we propose an implementation for all types handled by the PyRat game.
         In:
             * graph: Graph on which to get the list of vertices.
@@ -52,7 +52,7 @@ def get_neighbors ( vertex: int,
                   ) ->      List[int]:
 
     """
-        Fuction to return the list of neighbors of a given vertex.
+        Function to return the list of neighbors of a given vertex.
         Here we propose an implementation for all types handled by the PyRat game.
         The function assumes that the vertex exists in the maze.
         It can be checked using for instance `assert vertex in get_vertices(graph)` but this takes time.
@@ -86,7 +86,7 @@ def get_weight ( source: int,
                ) ->      List[int]:
 
     """
-        Fuction to return the weight of the edge in the graph from the source to the target.
+        Function to return the weight of the edge in the graph from the source to the target.
         Here we propose an implementation for all types handled by the PyRat game.
         The function assumes that both vertices exists in the maze and the target is a neighbor of the source.
         As above, it can be verified using `assert source in get_vertices(graph)` and `assert target in get_neighbors(source, graph)` but at some cost.
