@@ -349,11 +349,11 @@ class PyRat ():
                 
                     # Apply the actions
                     locations_before = self.player_locations.copy()
-                    corrected_actions = {player: actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing" for player in player_processs}
+                    corrected_actions = {player: actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing" for player in self.players}
                     done = self._update_game_state(corrected_actions)
                     
                     # Save stats
-                    for player in player_processs:
+                    for player in self.players:
                         if not actions_as_text[player].startswith("preprocessing"):
                             if actions_as_text[player] in ["north", "west", "south", "east"] and locations_before[player] == self.player_locations[player] and not self._is_in_mud(player):
                                 stats["players"][player]["actions"]["wall"] += 1
