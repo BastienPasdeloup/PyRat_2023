@@ -329,8 +329,7 @@ class PyRat ():
                     player_processes[player]["input_queue"].put((*player_fixed_data[player], self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats))
                 turn_start_synchronizer.wait()
                 
-                # Check that a turn lasts al least the time it should for each player
-                # Useful to guarantee processs have at least the required time
+                # Wait a bit
                 sleep_time = self.preprocessing_time if turn == 0 else self.turn_time
                 time.sleep(sleep_time)
                 
@@ -502,7 +501,6 @@ class PyRat ():
             players_running = {player: True for player in self.player_locations}
             while any(players_running.values()):
 
-
                 # We communicate with the players not in mud
                 actions_as_text = {player: "postprocessing" for player in self.player_locations}
                 durations = {player: None for player in self.player_locations}
@@ -510,6 +508,10 @@ class PyRat ():
                     final_stats = stats.copy() if done else None
                     actions_as_text[player], durations[player] = __communicate_with_player(player, self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats)
                 
+                # Wait a bit
+                sleep_time = self.preprocessing_time if turn == 0 else self.turn_time
+                time.sleep(sleep_time)
+
                 # Check which players are ready to continue
                 for player in self.player_locations:
                     if actions_as_text[player].startswith("postprocessing"):
