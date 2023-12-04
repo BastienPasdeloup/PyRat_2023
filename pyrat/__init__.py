@@ -310,7 +310,7 @@ class PyRat ():
                 player_processes[player]["process"].start()
 
             # If playing asynchronously, we create processs to wait instead of missing players
-            if not self.synchronous:
+            if self.game_mode == "standard":
                 waiter_processs = {}
                 for player in player_processes:
                     waiter_processs[player] = {"process": None, "input_queue": multiprocessing.Manager().Queue()}
@@ -339,7 +339,7 @@ class PyRat ():
                 # In synchronous mode, we wait for everyone
                 actions_as_text = {player: "postprocessing" for player in player_processes}
                 durations = {player: None for player in player_processes}
-                if self.synchronous:
+                if self.game_mode == "synchronous":
                     for player in player_processes:
                         player_processes[player]["turn_end_synchronizer"].wait()
                         actions_as_text[player], durations[player] = player_processes[player]["output_queue"].get()
@@ -368,7 +368,7 @@ class PyRat ():
                 for player in player_processes:
                     if actions_as_text[player].startswith("postprocessing"):
                         players_running[player] = False
-                    if not self.synchronous and (actions_as_text[player].startswith("postprocessing") or actions_as_text[player] == "miss"):
+                    if self.game_mode == "standard" and (actions_as_text[player].startswith("postprocessing") or actions_as_text[player] == "miss"):
                         waiter_processs[player]["input_queue"].put(True)
                     else:
                         players_ready.append(player)
