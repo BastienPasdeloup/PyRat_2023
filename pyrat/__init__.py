@@ -46,31 +46,31 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 list_type = lambda x: ast.literal_eval(x) if isinstance(ast.literal_eval(x), list) else exec("raise argparse.ArgumentTypeError(\"Should be a valid interval [2, ...]\")")
 
 # Arguments
-parser.add_argument("--random_seed",         type=int,                                                   default=None,         help="Global random seed for all elements")
-parser.add_argument("--random_seed_maze",    type=int,                                                   default=None,         help="Random seed for the maze generation")
-parser.add_argument("--random_seed_cheese",  type=int,                                                   default=None,         help="Random seed for the pieces of cheese distribution")
-parser.add_argument("--random_seed_players", type=int,                                                   default=None,         help="Random seed for the initial location of players")
-parser.add_argument("--maze_width",          type=int,                                                   default=15,           help="Width of the maze in number of cells")
-parser.add_argument("--maze_height",         type=int,                                                   default=13,           help="Height of the maze in number of cells")
-parser.add_argument("--cell_percentage",     type=float,                                                 default=80.0,         help="Percentage of cells that can be accessed in the maze, 0%% being a useless maze, and 100%% being a full rectangular maze")
-parser.add_argument("--wall_percentage",     type=float,                                                 default=60.0,         help="Percentage of walls in the maze, 0%% being an empty maze, and 100%% being the maximum number of walls that keep the maze connected")
-parser.add_argument("--mud_percentage",      type=float,                                                 default=20.0,         help="Percentage of pairs of adjacent cells that are separated by mud in the maze")
-parser.add_argument("--mud_range",           type=list_type,                                             default=[4, 9],       help="Interval of turns needed to cross mud")
-parser.add_argument("--maze_representation", type=str, choices=["dictionary", "matrix"],                 default="dictionary", help="Representation of the maze in memory as given to players")
-parser.add_argument("--fixed_maze",          type=str,                                                   default=None,         help="Fixed maze in any PyRat accepted representation (takes priority over any maze description and will automatically set maze_height and maze_width)")
-parser.add_argument("--nb_cheese",           type=int,                                                   default=21,           help="Number of pieces of cheese in the maze")
-parser.add_argument("--fixed_cheese",        type=str,                                                   default=None,         help="Fixed list of cheese (takes priority over random number of cheese)")
-parser.add_argument("--save_path",           type=str,                                                   default=".",          help="Path where games are saved")
-parser.add_argument("--save_game",           action="store_true",                                        default=False,        help="Indicates if the game should be saved")
-parser.add_argument("--preprocessing_time",  type=float,                                                 default=3.0,          help="Time given to the players before the game starts")
-parser.add_argument("--turn_time",           type=float,                                                 default=0.1,          help="Time after which players will miss a turn")
-parser.add_argument("--synchronous",         action="store_true",                                        default=False,        help="If set, waits for all players to return an action before moving, even if turn_time is exceeded",)
-parser.add_argument("--continue_on_error",   action="store_true",                                        default=False,        help="If a player crashes, continues the game anyway")
-parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"], default="gui",        help="Method to display the game, or no_rendering to play without rendering")
-parser.add_argument("--render_simplified",   action="store_true",                                        default=False,        help="If the maze is rendered, hides some elements that are not essential")
-parser.add_argument("--gui_speed",           type=float,                                                 default=1.0,          help="When rendering as GUI, controls the speed of the game")
-parser.add_argument("--fullscreen",          action="store_true",                                        default=False,        help="Renders the game in fullscreen mode (GUI rendering only)")
-parser.add_argument("--trace_length",        type=int,                                                   default=0,            help="Maximum length of the trace to display when players are moving (GUI rendering only)")
+parser.add_argument("--random_seed",         type=int,                                                    default=None,         help="Global random seed for all elements")
+parser.add_argument("--random_seed_maze",    type=int,                                                    default=None,         help="Random seed for the maze generation")
+parser.add_argument("--random_seed_cheese",  type=int,                                                    default=None,         help="Random seed for the pieces of cheese distribution")
+parser.add_argument("--random_seed_players", type=int,                                                    default=None,         help="Random seed for the initial location of players")
+parser.add_argument("--maze_width",          type=int,                                                    default=15,           help="Width of the maze in number of cells")
+parser.add_argument("--maze_height",         type=int,                                                    default=13,           help="Height of the maze in number of cells")
+parser.add_argument("--cell_percentage",     type=float,                                                  default=80.0,         help="Percentage of cells that can be accessed in the maze, 0%% being a useless maze, and 100%% being a full rectangular maze")
+parser.add_argument("--wall_percentage",     type=float,                                                  default=60.0,         help="Percentage of walls in the maze, 0%% being an empty maze, and 100%% being the maximum number of walls that keep the maze connected")
+parser.add_argument("--mud_percentage",      type=float,                                                  default=20.0,         help="Percentage of pairs of adjacent cells that are separated by mud in the maze")
+parser.add_argument("--mud_range",           type=list_type,                                              default=[4, 9],       help="Interval of turns needed to cross mud")
+parser.add_argument("--maze_representation", type=str, choices=["dictionary", "matrix"],                  default="dictionary", help="Representation of the maze in memory as given to players")
+parser.add_argument("--fixed_maze",          type=str,                                                    default=None,         help="Fixed maze in any PyRat accepted representation (takes priority over any maze description and will automatically set maze_height and maze_width)")
+parser.add_argument("--nb_cheese",           type=int,                                                    default=21,           help="Number of pieces of cheese in the maze")
+parser.add_argument("--fixed_cheese",        type=str,                                                    default=None,         help="Fixed list of cheese (takes priority over random number of cheese)")
+parser.add_argument("--save_path",           type=str,                                                    default=".",          help="Path where games are saved")
+parser.add_argument("--save_game",           action="store_true",                                         default=False,        help="Indicates if the game should be saved")
+parser.add_argument("--preprocessing_time",  type=float,                                                  default=3.0,          help="Time given to the players before the game starts")
+parser.add_argument("--turn_time",           type=float,                                                  default=0.1,          help="Time after which players will miss a turn")
+parser.add_argument("--game_mode",           type=str, choices=["standard", "synchronous", "sequential"], default="standard",   help="Indicates if players play concurrently, wait for each other, or if multiprocessing is disabled")
+parser.add_argument("--continue_on_error",   action="store_true",                                         default=False,        help="If a player crashes, continues the game anyway")
+parser.add_argument("--render_mode",         type=str, choices=["ascii", "ansi", "gui", "no_rendering"],  default="gui",        help="Method to display the game, or no_rendering to play without rendering")
+parser.add_argument("--render_simplified",   action="store_true",                                         default=False,        help="If the maze is rendered, hides some elements that are not essential")
+parser.add_argument("--gui_speed",           type=float,                                                  default=1.0,          help="When rendering as GUI, controls the speed of the game")
+parser.add_argument("--fullscreen",          action="store_true",                                         default=False,        help="Renders the game in fullscreen mode (GUI rendering only)")
+parser.add_argument("--trace_length",        type=int,                                                    default=0,            help="Maximum length of the trace to display when players are moving (GUI rendering only)")
 
 # Parse the arguments into a global variable
 args, unknown_args = parser.parse_known_args()
@@ -115,7 +115,7 @@ class PyRat ():
                    save_game:           bool = args.save_game,
                    preprocessing_time:  float = args.preprocessing_time,
                    turn_time:           float = args.turn_time,
-                   synchronous:         bool = args.synchronous,
+                   game_mode:           str = args.game_mode,
                    continue_on_error:   bool = args.continue_on_error
                  ) ->                   Self:
 
@@ -147,7 +147,7 @@ class PyRat ():
                 * save_game:           Indicates if the game should be saved.
                 * preprocessing_time:  Time given to the players before the game starts.
                 * turn_time:           Time after which players will miss a turn.
-                * synchronous:         If set, waits for all players to return an action before moving, even if turn_time is exceeded.
+                * game_mode:           Indicates if players play concurrently, wait for each other, or if multiprocessing is disabled.
                 * continue_on_error:   If a player crashes, continues the game anyway.
                 
             Out:
@@ -168,6 +168,9 @@ class PyRat ():
         assert 0.0 <= preprocessing_time
         assert 0.0 <= turn_time
         assert 0 < len(players)
+        assert maze_representation in ["dictionary", "matrix"]
+        assert game_mode in ["standard", "synchronous", "sequential"]
+        assert render_mode in ["ascii", "ansi", "gui", "no_rendering"]
         
         # Store arguments (some might be overwritten later)
         self.maze_width = maze_width
@@ -189,7 +192,7 @@ class PyRat ():
         self.save_game = save_game
         self.preprocessing_time = preprocessing_time
         self.turn_time = turn_time
-        self.synchronous = synchronous
+        self.game_mode = game_mode
         self.continue_on_error = continue_on_error
         
         # Set random seeds
@@ -252,6 +255,36 @@ class PyRat ():
                 * stats: Game statistics computed during the game.
         """
         
+        # Call the correct start function depending on the game mode
+        if self.game_mode == "standard" or self.game_mode == "synchronous":
+            stats = self._start_multiprocessing()
+        else:
+            stats = self._start_sequential()
+        
+        # Close the game
+        self._close()
+
+        # Return stats
+        return stats
+
+    #############################################################################################################################################
+    #                                                              PRIVATE METHODS                                                              #
+    #                                                             (GAME MANAGEMENT)                                                             #
+    #############################################################################################################################################
+
+    def _start_multiprocessing ( self: Self
+                               ) ->    Dict[str, Any]:
+
+        """
+            Starts a game, asking players for decisions until the game is over.
+            This function is made for multiprocessing playing.
+            This corresponds to game_mode=="standard" or game_mode=="synchronous".
+            In:
+                * self: Reference to the current object.
+            Out:
+                * stats: Game statistics computed during the game.
+        """
+        
         # We catch exceptions that may happen during the game
         try:
             
@@ -268,18 +301,18 @@ class PyRat ():
             # Create a process per player
             turn_start_synchronizer = multiprocessing.Manager().Barrier(len(self.player_locations) + 1)
             turn_timeout_lock = multiprocessing.Manager().Lock()
-            player_processs = {}
+            player_processes = {}
             player_fixed_data = {}
             for player in self.player_locations:
                 player_fixed_data[player] = [self.maze_public.copy(), self.maze_width, self.maze_height, self.teams.copy(), possible_actions.copy()]
-                player_processs[player] = {"process": None, "input_queue": multiprocessing.Manager().Queue(), "output_queue": multiprocessing.Manager().Queue(), "turn_end_synchronizer": multiprocessing.Manager().Barrier(2)}
-                player_processs[player]["process"] = multiprocessing.Process(target=_player_process_function, args=(player, player_processs[player]["input_queue"], player_processs[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_processs[player]["turn_end_synchronizer"], self.player_functions[player]["preprocessing"], self.player_functions[player]["turn"], self.player_functions[player]["postprocessing"],))
-                player_processs[player]["process"].start()
+                player_processes[player] = {"process": None, "input_queue": multiprocessing.Manager().Queue(), "output_queue": multiprocessing.Manager().Queue(), "turn_end_synchronizer": multiprocessing.Manager().Barrier(2)}
+                player_processes[player]["process"] = multiprocessing.Process(target=_player_process_function, args=(player, player_processes[player]["input_queue"], player_processes[player]["output_queue"], turn_start_synchronizer, turn_timeout_lock, player_processes[player]["turn_end_synchronizer"], self.player_functions[player]["preprocessing"], self.player_functions[player]["turn"], self.player_functions[player]["postprocessing"],))
+                player_processes[player]["process"].start()
 
-            # If playing asynchrounously, we create processs to wait instead of missing players
+            # If playing asynchronously, we create processs to wait instead of missing players
             if not self.synchronous:
                 waiter_processs = {}
-                for player in player_processs:
+                for player in player_processes:
                     waiter_processs[player] = {"process": None, "input_queue": multiprocessing.Manager().Queue()}
                     waiter_processs[player]["process"] = multiprocessing.Process(target=_waiter_process_function, args=(waiter_processs[player]["input_queue"], turn_start_synchronizer,))
                     waiter_processs[player]["process"].start()
@@ -288,14 +321,14 @@ class PyRat ():
             self._render(turn, done)
             
             # We play until the game is over
-            players_ready = list(player_processs.keys())
-            players_running = {player: True for player in player_processs}
+            players_ready = list(player_processes.keys())
+            players_running = {player: True for player in player_processes}
             while any(players_running.values()):
 
                 # We communicate the state of the game to the players not in mud
                 for player in players_ready:
                     final_stats = stats.copy() if done else None
-                    player_processs[player]["input_queue"].put((*player_fixed_data[player], self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats))
+                    player_processes[player]["input_queue"].put((*player_fixed_data[player], self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats))
                 turn_start_synchronizer.wait()
                 
                 # Check that a turn lasts al least the time it should for each player
@@ -304,35 +337,35 @@ class PyRat ():
                 time.sleep(sleep_time)
                 
                 # In synchronous mode, we wait for everyone
-                actions_as_text = {player: "postprocessing" for player in player_processs}
-                durations = {player: None for player in player_processs}
+                actions_as_text = {player: "postprocessing" for player in player_processes}
+                durations = {player: None for player in player_processes}
                 if self.synchronous:
-                    for player in player_processs:
-                        player_processs[player]["turn_end_synchronizer"].wait()
-                        actions_as_text[player], durations[player] = player_processs[player]["output_queue"].get()
+                    for player in player_processes:
+                        player_processes[player]["turn_end_synchronizer"].wait()
+                        actions_as_text[player], durations[player] = player_processes[player]["output_queue"].get()
 
                 # Otherwise, we block the possibility to return an action and check who answered in time
                 else:
 
                     # Wait at least for those in mud
-                    for player in player_processs:
+                    for player in player_processes:
                         if self._is_in_mud(player) and players_running[player]:
-                            player_processs[player]["turn_end_synchronizer"].wait()
-                            actions_as_text[player], durations[player] = player_processs[player]["output_queue"].get()
+                            player_processes[player]["turn_end_synchronizer"].wait()
+                            actions_as_text[player], durations[player] = player_processes[player]["output_queue"].get()
 
                     # For others, set timeout and wait for output info of those who passed just before timeout
                     with turn_timeout_lock:
-                        for player in player_processs:
+                        for player in player_processes:
                             if not self._is_in_mud(player) and players_running[player]:
-                                if not player_processs[player]["output_queue"].empty():
-                                    player_processs[player]["turn_end_synchronizer"].wait()
-                                    actions_as_text[player], durations[player] = player_processs[player]["output_queue"].get()
+                                if not player_processes[player]["output_queue"].empty():
+                                    player_processes[player]["turn_end_synchronizer"].wait()
+                                    actions_as_text[player], durations[player] = player_processes[player]["output_queue"].get()
                                 else:
                                     actions_as_text[player] = "miss"
                         
                 # Check which players are ready to continue
                 players_ready = []
-                for player in player_processs:
+                for player in player_processes:
                     if actions_as_text[player].startswith("postprocessing"):
                         players_running[player] = False
                     if not self.synchronous and (actions_as_text[player].startswith("postprocessing") or actions_as_text[player] == "miss"):
@@ -341,7 +374,7 @@ class PyRat ():
                         players_ready.append(player)
 
                 # Check for errors
-                if any([actions_as_text[player].endswith("error") for player in player_processs]) and not self.continue_on_error:
+                if any([actions_as_text[player].endswith("error") for player in player_processes]) and not self.continue_on_error:
                     raise Exception("A player has crashed, exiting")
 
                 # We save the turn info if we are not postprocessing
@@ -379,13 +412,146 @@ class PyRat ():
             print(traceback.format_exc(), file=sys.stderr)
             stats = {}
         
-        # Clean before returning
-        self._close()
+        # Return stats
         return stats
 
     #############################################################################################################################################
-    #                                                              PRIVATE METHODS                                                              #
-    #                                                             (GAME MANAGEMENT)                                                             #
+
+    def _start_sequential ( self: Self
+                          ) ->    Dict[str, Any]:
+
+        """
+            Starts a game, asking players for decisions until the game is over.
+            This function is made for multiprocessing playing.
+            This corresponds to game_mode=="standard" or game_mode=="synchronous".
+            In:
+                * self: Reference to the current object.
+            Out:
+                * stats: Game statistics computed during the game.
+        """
+        
+        # We catch exceptions that may happen during the game
+        try:
+            
+            # Start the game
+            turn = 0
+            done = False
+            possible_actions = ["nothing", "north", "east", "south", "west"]
+
+            # Initialize stats
+            stats = {"players": {}, "turns": -1}
+            for player in self.player_locations:
+                stats["players"][player] = {"actions": {"mud": 0, "error": 0, "miss": 0, "nothing": 0, "north": 0, "east": 0, "south": 0, "west": 0, "wall": 0}, "score": 0, "turn_durations": [], "preprocessing_duration": None}
+            
+            # Initial rendering of the maze
+            self._render(turn, done)
+            
+            # Function to communicate with the players
+            player_fixed_data = {player: [self.maze_public.copy(), self.maze_width, self.maze_height, self.teams.copy(), possible_actions.copy(), threading.local()] for player in self.player_locations}
+            def __communicate_with_player (player, player_locations, player_scores, player_muds, cheese, turn, final_stats):
+
+                # We catch exceptions that may happen during the phase
+                action = "error"
+                duration = None
+                try:
+
+                    # Get data
+                    maze, maze_width, maze_height, teams, possible_actions, memory = player_fixed_data[player]
+
+                    # Call postprocessing once the game is over
+                    if final_stats is not None:
+                        action = "postprocessing_error"
+                        if self.player_functions[player]["postprocessing"] is not None:
+                            self.player_functions[player]["postprocessing"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory, final_stats)
+                        action = "postprocessing"
+                        
+                    # If in mud, we return immediately (main process will wait for us in all cases)
+                    elif player_muds[player]["target"] is not None:
+                        action = "mud"
+                    
+                    # Otherwise, we ask for an action
+                    else:
+                    
+                        # Measure start time
+                        start = time.process_time()
+                        
+                        # Go
+                        if turn == 0:
+                            action = "preprocessing_error"
+                            if self.player_functions[player]["preprocessing"] is not None:
+                                self.player_functions[player]["preprocessing"](maze, maze_width, maze_height, player, teams, player_locations, cheese, possible_actions, memory)
+                            action = "preprocessing"
+                        else:
+                            action = "error"
+                            a = self.player_functions[player]["turn"](maze, maze_width, maze_height, player, teams, player_locations, player_scores, player_muds, cheese, possible_actions, memory)
+                            if a not in possible_actions:
+                                raise Exception("Invalid action %s by player %s" % (str(a), player))
+                            action = a
+                        
+                        # Set end time
+                        end_time = time.process_time()
+                        duration = end_time - start
+                    
+                # Print error message in case of a crash
+                except:
+                    print("Player %s has crashed with the following error:" % (player), file=sys.stderr)
+                    print(traceback.format_exc(), file=sys.stderr)
+                        
+                # Turn is over
+                return action, duration
+
+            # We play until the game is over
+            while not done:
+
+                # We communicate with the players not in mud
+                actions_as_text = {player: "postprocessing" for player in self.player_locations}
+                durations = {player: None for player in self.player_locations}
+                for player in self.player_locations:
+                    final_stats = stats.copy() if done else None
+                    actions_as_text[player], durations[player] = __communicate_with_player(player, self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats)
+                    
+                # Check for errors
+                if any([actions_as_text[player].endswith("error") for player in self.player_locations]) and not self.continue_on_error:
+                    raise Exception("A player has crashed, exiting")
+
+                # We save the turn info if we are not postprocessing
+                if not done:
+                
+                    # Apply the actions
+                    locations_before = self.player_locations.copy()
+                    corrected_actions = {player: actions_as_text[player] if actions_as_text[player] in possible_actions else "nothing" for player in self.player_locations}
+                    done = self._update_game_state(corrected_actions)
+                    
+                    # Save stats
+                    for player in self.player_locations:
+                        if not actions_as_text[player].startswith("preprocessing"):
+                            if actions_as_text[player] in ["north", "west", "south", "east"] and locations_before[player] == self.player_locations[player] and not self._is_in_mud(player):
+                                stats["players"][player]["actions"]["wall"] += 1
+                                stats["players"][player]["actions"][actions_as_text[player]] -= 1
+                            else:
+                                stats["players"][player]["actions"][actions_as_text[player]] += 1
+                            if actions_as_text[player] != "mud":
+                                self.actions_history[player].append(corrected_actions[player])
+                        if durations[player] is not None:
+                            if actions_as_text[player].startswith("preprocessing"):
+                                stats["players"][player]["preprocessing_duration"] = durations[player]
+                            else:
+                                stats["players"][player]["turn_durations"].append(durations[player])
+                        stats["players"][player]["score"] = self.player_scores[player]
+                    stats["turns"] = turn
+                    
+                    # Go to next turn
+                    turn += 1
+                    self._render(turn, done)
+
+        # In case of an error, we ignore stats
+        except:
+            print(traceback.format_exc(), file=sys.stderr)
+            stats = {}
+        
+        # Return stats
+        return stats
+
     #############################################################################################################################################
 
     def _close ( self: Self
