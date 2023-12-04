@@ -499,7 +499,9 @@ class PyRat ():
                 return action, duration
 
             # We play until the game is over
-            while not done:
+            players_running = {player: True for player in self.player_locations}
+            while any(players_running.values()):
+
 
                 # We communicate with the players not in mud
                 actions_as_text = {player: "postprocessing" for player in self.player_locations}
@@ -507,7 +509,12 @@ class PyRat ():
                 for player in self.player_locations:
                     final_stats = stats.copy() if done else None
                     actions_as_text[player], durations[player] = __communicate_with_player(player, self.player_locations.copy(), self.player_scores.copy(), self.player_muds.copy(), self.cheese.copy(), turn, final_stats)
-                    
+                
+                # Check which players are ready to continue
+                for player in self.player_locations:
+                    if actions_as_text[player].startswith("postprocessing"):
+                        players_running[player] = False
+
                 # Check for errors
                 if any([actions_as_text[player].endswith("error") for player in self.player_locations]) and not self.continue_on_error:
                     raise Exception("A player has crashed, exiting")
