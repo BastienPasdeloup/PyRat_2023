@@ -573,7 +573,7 @@ class PyRat ():
                 os.makedirs(self.save_path)
 
             # Prepare the config dictionary
-            config = {"synchronous": True,
+            config = {"game_mode": "synchronous",
                       "fixed_maze": self.maze,
                       "fixed_cheese": self.initial_cheese}
             
