@@ -261,10 +261,8 @@ class PyRat ():
         else:
             stats = self._start_sequential()
         
-        # Close the game
+        # Clean before returning
         self._close()
-
-        # Return stats
         return stats
 
     #############################################################################################################################################
@@ -1253,7 +1251,8 @@ class PyRat ():
 
         # No GUI in sequential mode
         if self.game_mode == "sequential":
-            print("Warning: GUI is not available in sequential mode, choose another render mode", file=sys.stderr)
+            if turn == 0:
+                print("Warning: GUI is not available in sequential mode, choose another render mode if you want to monitor the game", file=sys.stderr)
             return
 
         # Initialize the GUI in a different process at turn 0
