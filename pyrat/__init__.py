@@ -1251,6 +1251,11 @@ class PyRat ():
                 * None.
         """
 
+        # No GUI in sequential mode
+        if self.game_mode == "sequential":
+            print("Warning: GUI is not available in sequential mode, choose another render mode", file=sys.stderr)
+            return
+
         # Initialize the GUI in a different process at turn 0
         if turn == 0:
 
